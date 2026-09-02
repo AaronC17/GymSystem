@@ -4841,8 +4841,9 @@ button:disabled {
     min-width: 40px;
     height: 40px;
     min-height: 40px;
-    display: grid;
-    place-items: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 0;
     gap: 0;
     font-size: 0;
@@ -4852,6 +4853,7 @@ button:disabled {
   .exercise-table-header .button svg {
     display: block;
     margin: 0;
+    transform: translateX(1px);
   }
 
   .exercise-row {
