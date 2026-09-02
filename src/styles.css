@@ -2251,20 +2251,25 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 22px;
+  min-height: 88px;
+  padding: 16px 22px;
   border-bottom: 1px solid var(--line-soft);
+  gap: 12px;
 }
 
 .exercise-table-header > div {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex: 1;
 }
 
 .day-number {
   display: grid;
   width: 42px;
   height: 42px;
+  flex: 0 0 42px;
   place-items: center;
   border-radius: 12px;
   font-size: 9px;
@@ -4842,6 +4847,7 @@ button:disabled {
     min-width: 40px;
     height: 40px;
     min-height: 40px;
+    flex: 0 0 40px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
