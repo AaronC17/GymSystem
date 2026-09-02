@@ -17,8 +17,8 @@ Aplicación web para convertir rutinas de gimnasio en PDF en un registro de entr
 
 ## Acceso
 
-- Correo: `kyani1278@gmail.com`
-- Contraseña: `blackelcita666`
+- Correo: `kyani1278@gmail.com` · Contraseña: `blackelcita666`
+- Correo: `contrerasaaron447@gmail.com` · Contraseña: `127812`
 
 ## Desarrollo
 

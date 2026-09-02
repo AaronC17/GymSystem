@@ -97,8 +97,10 @@ type StoredWorkoutDraft = {
 
 const ACTIVE_WORKOUT_KEY = 'tempo-active-workout-v1';
 const AUTH_STORAGE_KEY = 'tempo-auth-user-v1';
-const LOGIN_EMAIL = 'kyani1278@gmail.com';
-const LOGIN_PASSWORD = 'blackelcita666';
+const ALLOWED_USERS: Array<{ email: string; password: string; name: string }> = [
+  { email: 'kyani1278@gmail.com', password: 'blackelcita666', name: 'Kyani' },
+  { email: 'contrerasaaron447@gmail.com', password: '127812', name: 'Aaron Contreras' },
+];
 
 function readAuthUser(): AuthUser | null {
   try {
@@ -327,13 +329,16 @@ function LoginScreen({ onLogin }: { onLogin: (user: AuthUser, remember: boolean)
       setError('Ingresa tu correo y contraseña para continuar.');
       return;
     }
-    if (email.trim().toLowerCase() !== LOGIN_EMAIL || password !== LOGIN_PASSWORD) {
+    const matched = ALLOWED_USERS.find(
+      (u) => email.trim().toLowerCase() === u.email.toLowerCase() && password === u.password,
+    );
+    if (!matched) {
       setError('Las credenciales no coinciden.');
       return;
     }
     setError('');
     setSubmitting(true);
-    window.setTimeout(() => onLogin({ name: 'Kyani', email: LOGIN_EMAIL }, remember), 450);
+    window.setTimeout(() => onLogin({ name: matched.name, email: matched.email }, remember), 450);
   }
 
   return (
