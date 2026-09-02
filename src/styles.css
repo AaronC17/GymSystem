@@ -2167,6 +2167,7 @@ button:disabled {
 }
 
 .routine-day-tab {
+  --tab-accent: var(--line);
   position: relative;
   display: flex;
   min-height: 133px;
@@ -2176,7 +2177,7 @@ button:disabled {
   overflow: hidden;
   cursor: pointer;
   transition: 160ms ease;
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--tab-accent) 28%, var(--line));
   border-radius: 16px;
   background: rgba(251, 251, 249, 0.78);
   text-align: left;
@@ -2184,7 +2185,7 @@ button:disabled {
 
 .routine-day-tab:hover {
   transform: translateY(-2px);
-  border-color: #bec1b7;
+  border-color: color-mix(in srgb, var(--tab-accent) 42%, #bec1b7);
 }
 
 .routine-day-tab.active {
@@ -2194,12 +2195,12 @@ button:disabled {
   box-shadow: 0 14px 30px rgba(29, 34, 27, 0.11);
 }
 
+.routine-day-tab.active > i {
+  opacity: 0;
+}
+
 .routine-day-tab > i {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 4px;
+  display: none;
 }
 
 .routine-day-tab > span {

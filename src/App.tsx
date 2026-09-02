@@ -938,8 +938,9 @@ function RoutineView({
                 className={`routine-day-tab ${activeDay?.id === day.id ? 'active' : ''}`}
                 key={day.id}
                 onClick={() => setExpandedDay(day.id)}
+                style={{ ['--tab-accent' as any]: day.color }}
               >
-                <i style={{ background: day.color }} />
+                <i aria-hidden style={{ background: day.color }} />
                 <span>DÍA {index + 1} · {DAY_NAMES[day.dayOfWeek].toUpperCase()}</span>
                 <strong>{day.title}</strong>
                 <small>{day.focus || `${day.exercises.length} ejercicios`}</small>
