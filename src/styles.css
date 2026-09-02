@@ -4111,6 +4111,19 @@ button:disabled {
   text-align: center;
 }
 
+.previous-hint {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  grid-column: 1 / -1;
+  color: #6b6f6a;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
 .set-row > label {
   display: flex;
   height: 42px;
@@ -5164,6 +5177,14 @@ button:disabled {
 
   .previous-set {
     display: none;
+  }
+
+  .previous-hint {
+    display: flex;
+    margin-top: 2px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: rgba(215, 244, 91, 0.12);
   }
 
   .set-number {

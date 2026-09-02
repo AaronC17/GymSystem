@@ -1526,6 +1526,7 @@ function WorkoutSession({
                     <button type="button" className="set-check" onClick={() => updateSet(index, { done: !set.done })} aria-label={`Completar serie ${index + 1}`}>
                       <Check size={19} />
                     </button>
+                    {previousSet && <span className="previous-hint"><TrendingUp size={10} /> Anterior: {displayWeight(previousSet.weight, previousSet.unit, unit)} {unit} × {previousSet.reps} — supera</span>}
                   </div>
                 );
               })}
