@@ -294,7 +294,7 @@ function parseStructuredTables(pages: PositionedText[][], fallbackName: string):
           name,
           sets: anchor.sets,
           reps: cleanReps(repsText, anchor.accordingToVideo),
-          rest: 90,
+          rest: 180,
           muscle: muscle || undefined,
           link,
         }];
@@ -338,9 +338,9 @@ function parseExerciseLine(line: string) {
     if (!match) continue;
     const name = cleanExerciseName(match[1]);
     if (name.length < 3) continue;
-    return { name, sets: Math.min(10, Number(match[2])), reps: match[3].replace(/\s/g, '').replace('-', '–'), rest: 90 };
+    return { name, sets: Math.min(10, Number(match[2])), reps: match[3].replace(/\s/g, '').replace('-', '–'), rest: 180 };
   }
-  if (exerciseWords.test(clean) && !/\d{3,}/.test(clean)) return { name: cleanExerciseName(clean), sets: 3, reps: '8–12', rest: 90 };
+  if (exerciseWords.test(clean) && !/\d{3,}/.test(clean)) return { name: cleanExerciseName(clean), sets: 3, reps: '8–12', rest: 180 };
   return null;
 }
 

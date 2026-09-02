@@ -1625,7 +1625,7 @@ function RoutineBuilderModal({
         focus: '',
         color: ACCENT_COLORS[0],
         duration: 55,
-        exercises: [{ id: uid('exercise'), name: 'Nuevo ejercicio', sets: 3, reps: '8–12', rest: 90 }],
+        exercises: [{ id: uid('exercise'), name: 'Nuevo ejercicio', sets: 3, reps: '8–12', rest: 180 }],
       }],
     });
     setStage('review');
@@ -1638,7 +1638,7 @@ function RoutineBuilderModal({
   function addExercise(dayId: string) {
     updateDay(dayId, (day) => ({
       ...day,
-      exercises: [...day.exercises, { id: uid('exercise'), name: 'Nuevo ejercicio', sets: 3, reps: '8–12', rest: 90 }],
+      exercises: [...day.exercises, { id: uid('exercise'), name: 'Nuevo ejercicio', sets: 3, reps: '8–12', rest: 180 }],
     }));
   }
 
@@ -1657,7 +1657,7 @@ function RoutineBuilderModal({
           focus: '',
           color: ACCENT_COLORS[current.days.length % ACCENT_COLORS.length],
           duration: 55,
-          exercises: [{ id: uid('exercise'), name: 'Nuevo ejercicio', sets: 3, reps: '8–12', rest: 90 }],
+          exercises: [{ id: uid('exercise'), name: 'Nuevo ejercicio', sets: 3, reps: '8–12', rest: 180 }],
         }],
       };
     });
