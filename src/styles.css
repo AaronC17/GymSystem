@@ -3867,9 +3867,9 @@ button:disabled {
 }
 
 .workout-progress {
-  position: fixed;
+  position: sticky;
   z-index: 11;
-  top: 69px;
+  top: 72px;
   right: 0;
   left: 0;
   height: 3px;
@@ -5142,7 +5142,8 @@ button:disabled {
   }
 
   .workout-progress {
-    top: 61px;
+    position: sticky;
+    top: 64px;
   }
 
   .workout-body {
