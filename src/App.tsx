@@ -100,6 +100,7 @@ const AUTH_STORAGE_KEY = 'tempo-auth-user-v1';
 const ALLOWED_USERS: Array<{ email: string; password: string; name: string }> = [
   { email: 'kyani1278@gmail.com', password: 'blackelcita666', name: 'Kyani' },
   { email: 'contrerasaaron447@gmail.com', password: '127812', name: 'Aaron Contreras' },
+  { email: 'dylancontreras@gmail.com', password: 'dylancontreras', name: 'Dylan Contreras' },
 ];
 
 function readAuthUser(): AuthUser | null {
