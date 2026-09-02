@@ -4459,13 +4459,20 @@ button:disabled {
 @media (max-width: 900px) {
   html:has(.login-page),
   body:has(.login-page) {
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
     background: #17201b;
   }
 
   .login-page {
-    display: block;
+    display: grid;
+    place-items: center;
+    height: 100dvh;
     min-height: 100dvh;
-    background: linear-gradient(155deg, #1a251c 0%, #17201b 48%, #141b17 100%);
+    overflow: hidden;
+    overscroll-behavior: none;
+    background: #17201b;
   }
 
   .login-showcase {
@@ -4473,9 +4480,12 @@ button:disabled {
   }
 
   .login-access {
-    min-height: 100dvh;
+    min-height: auto;
+    height: auto;
     justify-content: center;
-    padding: 42px 22px 55px;
+    align-items: center;
+    padding: 24px 22px;
+    overflow: hidden;
   }
 
   .login-access::before {
