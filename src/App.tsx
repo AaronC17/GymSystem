@@ -503,8 +503,14 @@ function Topbar({
   hasRoutine: boolean;
 }) {
   const firstName = user.name.split(' ')[0] || 'Atleta';
+  const greeting = (() => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return 'Buenos días';
+    if (hour >= 12 && hour < 19) return 'Buenas tardes';
+    return 'Buenas noches';
+  })();
   const titles: Record<Page, { eyebrow: string; title: string }> = {
-    inicio: { eyebrow: 'TU ESPACIO DE ENTRENAMIENTO', title: `Buenos días, ${firstName}` },
+    inicio: { eyebrow: 'TU ESPACIO DE ENTRENAMIENTO', title: `${greeting}, ${firstName}` },
     rutina: { eyebrow: 'PLAN DE ENTRENAMIENTO', title: 'Mi rutina' },
     calendario: { eyebrow: 'HISTORIAL DE ACTIVIDAD', title: 'Calendario' },
     progreso: { eyebrow: 'DATOS Y EVOLUCIÓN', title: 'Tu progreso' },
