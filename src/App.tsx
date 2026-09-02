@@ -302,7 +302,7 @@ function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`brand ${compact ? 'brand-compact' : ''}`} aria-label="Kyon+">
       <div className="brand-mark">
-        <span>T</span>
+        <span>K</span>
         <i />
       </div>
       {!compact && (
