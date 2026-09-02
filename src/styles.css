@@ -5226,6 +5226,10 @@ button:disabled {
     background: rgba(215, 244, 91, 0.12);
   }
 
+  .set-row input {
+    font-size: 16px;
+  }
+
   .set-number {
     width: 31px;
     height: 31px;
