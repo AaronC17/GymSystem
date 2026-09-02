@@ -4466,12 +4466,15 @@ button:disabled {
   }
 
   .login-page {
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     height: 100dvh;
     min-height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
+    padding: 16px;
+    box-sizing: border-box;
     background: #17201b;
   }
 
@@ -4480,12 +4483,17 @@ button:disabled {
   }
 
   .login-access {
+    width: 100%;
+    max-width: 430px;
     min-height: auto;
     height: auto;
-    justify-content: center;
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    padding: 24px 22px;
-    overflow: hidden;
+    justify-content: center;
+    padding: 0;
+    margin: 0 auto;
+    overflow: visible;
   }
 
   .login-access::before {
