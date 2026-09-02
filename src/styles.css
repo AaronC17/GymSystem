@@ -2177,7 +2177,7 @@ button:disabled {
   overflow: hidden;
   cursor: pointer;
   transition: 160ms ease;
-  border: 1px solid color-mix(in srgb, var(--tab-accent) 28%, var(--line));
+  border: 1px solid color-mix(in srgb, var(--tab-accent) 33%, var(--line));
   border-radius: 16px;
   background: rgba(251, 251, 249, 0.78);
   text-align: left;
@@ -2185,7 +2185,7 @@ button:disabled {
 
 .routine-day-tab:hover {
   transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--tab-accent) 42%, #bec1b7);
+  border-color: color-mix(in srgb, var(--tab-accent) 47%, #bec1b7);
 }
 
 .routine-day-tab.active {

@@ -124,13 +124,12 @@ function assignToColumns(items: PositionedText[], starts: number[]) {
   const columns: PositionedText[][] = starts.map(() => []);
   const boundaries: number[] = [];
   for (let i = 0; i < starts.length - 1; i += 1) {
-    boundaries.push((starts[i] + starts[i + 1]) / 2);
+    boundaries.push((starts[i] + starts[i + 1]) / 2 + 12);
   }
   for (const item of items) {
     let nearest = 0;
     for (let i = 0; i < boundaries.length; i += 1) {
-      const boundary = boundaries[i] + Math.min(12, item.width * 0.5);
-      if (item.x >= boundary) nearest = i + 1;
+      if (item.x >= boundaries[i]) nearest = i + 1;
     }
     columns[nearest].push(item);
   }
@@ -161,19 +160,12 @@ function buildRowAnchors(seriesItems: PositionedText[], headerTop: number): RowA
   return [...numeric, ...clusterSpecialAnchors(specialLines)].sort((a, b) => a.top - b.top);
 }
 
-function groupCost(lines: VisualLine[], anchor: RowAnchor, nextAnchorTop?: number) {
+function groupCost(lines: VisualLine[], anchor: RowAnchor) {
   const center = (lines[0].top + lines.at(-1)!.top) / 2;
   const distance = center - anchor.top;
   const startsAsContinuation = /^[a-záéíóúüñ(]/.test(lines[0].text.trim()) ? 900 : 0;
   const excessiveLength = Math.max(0, lines.length - 7) * 700;
-  let boundaryPenalty = 0;
-  if (nextAnchorTop !== undefined) {
-    const midpoint = (anchor.top + nextAnchorTop) / 2;
-    for (const line of lines) {
-      if (line.top > midpoint) boundaryPenalty += 5000;
-    }
-  }
-  return distance * distance + startsAsContinuation + excessiveLength + boundaryPenalty;
+  return distance * distance + startsAsContinuation + excessiveLength;
 }
 
 function partitionExerciseNames(lines: VisualLine[], anchors: RowAnchor[]) {
@@ -193,7 +185,7 @@ function partitionExerciseNames(lines: VisualLine[], anchors: RowAnchor[]) {
         const remainingLines = lineCount - end;
         const remainingRows = rowCount - row;
         if (remainingLines < remainingRows) continue;
-        const candidate = costs[row - 1][start] + groupCost(lines.slice(start, end), anchors[row - 1], anchors[row]?.top);
+        const candidate = costs[row - 1][start] + groupCost(lines.slice(start, end), anchors[row - 1]);
         if (candidate < costs[row][end]) {
           costs[row][end] = candidate;
           previous[row][end] = start;
