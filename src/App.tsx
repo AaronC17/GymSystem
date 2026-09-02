@@ -1136,7 +1136,7 @@ function CalendarView({
                   <i style={{ background: selectedDay?.color ?? ACCENT_COLORS[0] }}><Dumbbell size={18} /></i>
                   <div>
                     <strong>{selectedLog?.title ?? selectedDay?.title}</strong>
-                    <span>{selectedDay?.focus ?? `${selectedLog?.exercises.length ?? 0} ejercicios registrados`}</span>
+                    <span>{`${selectedDay?.exercises.length ?? selectedLog?.exercises.length ?? 0} ejercicios`}</span>
                   </div>
                   {selectedLog && <b><Check size={12} /> Completado</b>}
                 </div>
@@ -1148,7 +1148,7 @@ function CalendarView({
                   </div>
                 ) : (
                   <div className="planned-exercises">
-                    {selectedDay?.exercises.slice(0, 4).map((exercise) => (
+                    {selectedDay?.exercises.map((exercise) => (
                       <div key={exercise.id}><span>{exercise.name}</span><strong>{exercise.sets} × {exercise.reps}</strong></div>
                     ))}
                   </div>
