@@ -4457,9 +4457,14 @@ button:disabled {
 }
 
 @media (max-width: 900px) {
+  html:has(.login-page),
+  body:has(.login-page) {
+    background: #17201b;
+  }
+
   .login-page {
     display: block;
-    min-height: 100svh;
+    min-height: 100dvh;
     background: linear-gradient(155deg, #1a251c 0%, #17201b 48%, #141b17 100%);
   }
 
@@ -4468,7 +4473,7 @@ button:disabled {
   }
 
   .login-access {
-    min-height: 100svh;
+    min-height: 100dvh;
     justify-content: center;
     padding: 42px 22px 55px;
   }
