@@ -152,7 +152,7 @@ export function routineFromParsed(
       id: uid('day'),
       dayOfWeek: day.dayOfWeek,
       title: day.title,
-      focus: day.exercises.slice(0, 2).map((exercise) => exercise.name).join(' · '),
+      focus: '',
       color: ACCENT_COLORS[dayIndex % ACCENT_COLORS.length],
       duration: Math.max(35, day.exercises.length * 11 + 10),
       exercises: day.exercises.map((exercise) => ({ ...exercise, id: uid('exercise') })),

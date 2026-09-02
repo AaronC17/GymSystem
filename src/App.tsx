@@ -961,7 +961,7 @@ function RoutineView({
           <div className="exercise-table-header">
             <div>
               <span className="day-number" style={{ background: activeDay.color }}>{DAY_NAMES_SHORT[activeDay.dayOfWeek]}</span>
-              <div><small>{activeDay.focus}</small><h3>{activeDay.title}</h3></div>
+              <div>{activeDay.focus ? <small>{activeDay.focus}</small> : null}<h3>{activeDay.title}</h3></div>
             </div>
             <button className="button button-accent" type="button" onClick={() => onStart(activeDay)}>
               <Play size={16} fill="currentColor" /> Entrenar ahora
