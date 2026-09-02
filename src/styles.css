@@ -2164,6 +2164,14 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+  padding: 4px 0 12px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.routine-day-tabs::-webkit-scrollbar {
+  display: none;
+  height: 0;
 }
 
 .routine-day-tab {
@@ -4836,9 +4844,17 @@ button:disabled {
   .routine-day-tabs {
     display: flex;
     margin-right: -16px;
-    padding-right: 16px;
+    padding: 4px 16px 16px 0;
     overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     scroll-snap-type: x mandatory;
+  }
+
+  .routine-day-tabs::-webkit-scrollbar {
+    display: none;
+    height: 0;
   }
 
   .routine-day-tab {
