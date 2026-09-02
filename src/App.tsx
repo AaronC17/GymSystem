@@ -300,14 +300,14 @@ function getRecentConsistency(routine: Routine, logs: WorkoutLog[], weeks = 4) {
 
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={`brand ${compact ? 'brand-compact' : ''}`} aria-label="Trazza+">
+    <div className={`brand ${compact ? 'brand-compact' : ''}`} aria-label="Kyon+">
       <div className="brand-mark">
         <span>T</span>
         <i />
       </div>
       {!compact && (
         <div className="brand-copy">
-          <strong>TRAZZA+</strong>
+          <strong>KYON+</strong>
           <small>TRAINING JOURNAL</small>
         </div>
       )}
@@ -371,7 +371,7 @@ function LoginScreen({ onLogin }: { onLogin: (user: AuthUser, remember: boolean)
           </div>
           <div className="visual-weight"><FileText size={20} /><span><b>PDF</b> organizado</span></div>
         </div>
-        <footer><span>© {new Date().getFullYear()} Trazza+ Training Journal</span><span>Privado · Seguro · Personal</span></footer>
+        <footer><span>© {new Date().getFullYear()} Kyon+ Training Journal</span><span>Privado · Seguro · Personal</span></footer>
       </section>
 
       <section className="login-access">
@@ -564,7 +564,7 @@ function EmptyRoutineState({ page, onImport }: { page: Page; onImport: () => voi
     inicio: {
       eyebrow: 'EMPIEZA POR TU PLAN',
       title: 'Tu espacio está listo. Falta tu rutina.',
-      description: 'Sube el PDF que te entregó tu entrenador. Trazza+ leerá su estructura y organizará cada ejercicio en el día correspondiente.',
+      description: 'Sube el PDF que te entregó tu entrenador. Kyon+ leerá su estructura y organizará cada ejercicio en el día correspondiente.',
     },
     rutina: {
       eyebrow: 'SIN RUTINA ACTIVA',
@@ -612,7 +612,7 @@ function EmptyRoutineState({ page, onImport }: { page: Page; onImport: () => voi
         <div className="process-heading"><span>CÓMO FUNCIONA</span><h3>Del PDF a tu próximo entreno</h3></div>
         <div className="process-steps">
           <article><b>01</b><span><Upload size={18} /></span><h4>Sube el PDF</h4><p>Selecciona la rutina original sin completar datos manualmente.</p></article>
-          <article><b>02</b><span><ScanText size={18} /></span><h4>Trazza+ la organiza</h4><p>Detecta la división semanal y los ejercicios asignados a cada día.</p></article>
+          <article><b>02</b><span><ScanText size={18} /></span><h4>Kyon+ la organiza</h4><p>Detecta la división semanal y los ejercicios asignados a cada día.</p></article>
           <article><b>03</b><span><ListChecks size={18} /></span><h4>Revisa e importa</h4><p>Confirma series y repeticiones antes de llevar el plan al sistema.</p></article>
         </div>
       </section>
@@ -1540,7 +1540,7 @@ function WorkoutSession({
             </div>
             <button className="add-set-button" type="button" onClick={addSet}><Plus size={16} /> Añadir serie</button>
 
-            <div className="workout-tip"><Sparkles size={17} /><p><strong>Consejo de Trazza+</strong> Mantén 1–2 repeticiones en reserva y prioriza una técnica consistente.</p></div>
+            <div className="workout-tip"><Sparkles size={17} /><p><strong>Consejo de Kyon+</strong> Mantén 1–2 repeticiones en reserva y prioriza una técnica consistente.</p></div>
 
             <div className="workout-footer-actions">
               <button
@@ -1714,7 +1714,7 @@ function RoutineBuilderModal({
 
         {stage === 'upload' && (
           <div className="upload-stage">
-            <p>Sube la rutina que te entregó tu entrenador. Trazza+ identificará los días, ejercicios, series y repeticiones.</p>
+            <p>Sube la rutina que te entregó tu entrenador. Kyon+ identificará los días, ejercicios, series y repeticiones.</p>
             <div
               className={`drop-zone ${dragging ? 'dragging' : ''}`}
               onDragOver={(event) => { event.preventDefault(); setDragging(true); }}

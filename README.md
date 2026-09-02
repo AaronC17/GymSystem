@@ -1,4 +1,4 @@
-# Trazza+ Training Journal
+# Kyon+ Training Journal
 
 Aplicación web para convertir rutinas de gimnasio en PDF en un registro de entrenamiento medible durante todo el año.
 
