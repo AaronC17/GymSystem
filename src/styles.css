@@ -5443,6 +5443,10 @@ button:disabled {
     flex: 1;
   }
 
+  .incomplete-finish-dialog .confirm-actions {
+    flex-direction: column;
+  }
+
   .completion-modal {
     margin: 15px;
     padding: 30px 20px 25px;

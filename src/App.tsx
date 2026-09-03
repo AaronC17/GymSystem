@@ -1361,6 +1361,7 @@ function WorkoutSession({
   const [seconds, setSeconds] = useState(restoredDraft?.seconds ?? 0);
   const [activeExercise, setActiveExercise] = useState(0);
   const [showExit, setShowExit] = useState(false);
+  const [showIncompleteFinish, setShowIncompleteFinish] = useState(false);
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>(() => {
     if (restoredDraft) {
       return active.day.exercises.map((exercise) => {
@@ -1415,6 +1416,7 @@ function WorkoutSession({
 
   const totalSets = exerciseLogs.reduce((sum, exercise) => sum + exercise.sets.length, 0);
   const completedSets = exerciseLogs.reduce((sum, exercise) => sum + exercise.sets.filter((set) => set.done).length, 0);
+  const pendingSets = totalSets - completedSets;
   const progress = totalSets ? (completedSets / totalSets) * 100 : 0;
   const exercise = active.day.exercises[activeExercise];
   const currentLog = exerciseLogs[activeExercise];
@@ -1447,7 +1449,7 @@ function WorkoutSession({
   }
 
   function finish() {
-    if (completedSets !== totalSets) return;
+    setShowIncompleteFinish(false);
     clearWorkoutDraft();
     onFinish({
       id: existingWorkout?.id ?? uid('workout'),
@@ -1460,6 +1462,14 @@ function WorkoutSession({
     });
   }
 
+  function requestFinish() {
+    if (pendingSets > 0) {
+      setShowIncompleteFinish(true);
+      return;
+    }
+    finish();
+  }
+
   return (
     <div className="workout-overlay">
       <div className="workout-shell">
@@ -1467,7 +1477,7 @@ function WorkoutSession({
           <div className="workout-brand"><Logo compact /><span>ENTRENAMIENTO ACTIVO</span></div>
           <div className="workout-timer"><Clock3 size={17} /><strong>{minutes}:{timerSeconds}</strong></div>
           <div className="workout-header-actions">
-            <button className="workout-header-finish" type="button" disabled={completedSets !== totalSets} onClick={finish} title={completedSets !== totalSets ? `Faltan ${totalSets - completedSets} series` : 'Finalizar entrenamiento'}><Check size={17} /> <span>Finalizar</span></button>
+            <button className="workout-header-finish" type="button" onClick={requestFinish} title={pendingSets > 0 ? `Finalizar con ${pendingSets} ${pendingSets === 1 ? 'serie pendiente' : 'series pendientes'}` : 'Finalizar entrenamiento'}><Check size={17} /> <span>Finalizar</span></button>
             <button className="workout-close" type="button" onClick={() => setShowExit(true)}><X size={21} /> <span>Salir</span></button>
           </div>
         </header>
@@ -1565,7 +1575,7 @@ function WorkoutSession({
               {activeExercise < active.day.exercises.length - 1 ? (
                 <button className="button button-dark" type="button" onClick={() => setActiveExercise((value) => value + 1)}>Siguiente ejercicio <ArrowRight size={17} /></button>
               ) : (
-                <button className="button button-accent" type="button" title={completedSets !== totalSets ? 'Completa todas las series para finalizar' : undefined} disabled={completedSets !== totalSets} onClick={finish}><Check size={17} /> Finalizar entrenamiento</button>
+                <button className="button button-accent" type="button" onClick={requestFinish}><Check size={17} /> Finalizar entrenamiento</button>
               )}
             </div>
           </main>
@@ -1583,6 +1593,20 @@ function WorkoutSession({
               <button className="button button-light" type="button" onClick={onClose}>Guardar y salir</button>
             </div>
             <button className="discard-session" type="button" onClick={() => { clearWorkoutDraft(); onClose(); }}>Descartar esta sesión</button>
+          </div>
+        </div>
+      )}
+
+      {showIncompleteFinish && (
+        <div className="confirm-overlay" onMouseDown={(event) => event.target === event.currentTarget && setShowIncompleteFinish(false)}>
+          <div className="confirm-dialog incomplete-finish-dialog" role="dialog" aria-modal="true" aria-labelledby="incomplete-finish-title" aria-describedby="incomplete-finish-description">
+            <span><ListChecks size={24} /></span>
+            <h3 id="incomplete-finish-title">¿Finalizar con series pendientes?</h3>
+            <p id="incomplete-finish-description">Tienes {pendingSets} {pendingSets === 1 ? 'serie sin marcar como completada' : 'series sin marcar como completadas'}. Si finalizas ahora, el entrenamiento se guardará con esas series pendientes.</p>
+            <div className="confirm-actions">
+              <button className="button button-dark" type="button" onClick={() => setShowIncompleteFinish(false)}>Seguir entrenando</button>
+              <button className="button button-light" type="button" onClick={finish}>Finalizar igualmente</button>
+            </div>
           </div>
         </div>
       )}
