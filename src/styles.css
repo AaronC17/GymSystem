@@ -4161,6 +4161,10 @@ button:disabled {
   text-align: center;
 }
 
+.set-row input::placeholder {
+  color: rgba(48, 53, 45, 0.32);
+}
+
 .set-row label small {
   padding-right: 10px;
   color: #9da29a;

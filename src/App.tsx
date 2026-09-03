@@ -1384,7 +1384,7 @@ function WorkoutSession({
           const previousSet = previous?.[index] ?? previous?.[0];
           return {
             weight: previousSet ? displayWeight(previousSet.weight, previousSet.unit, unit) : 0,
-            reps: previousSet?.reps ?? parseTargetReps(exercise.reps),
+            reps: previousSet?.reps ?? 0,
             done: existing ? previousSet?.done ?? false : false,
             unit,
           };
@@ -1515,6 +1515,7 @@ function WorkoutSession({
                         min="0"
                         step="0.5"
                         value={set.weight || ''}
+                        placeholder="0"
                         onChange={(event) => updateSet(index, { weight: Number(event.target.value) })}
                         aria-label={`Peso de la serie ${index + 1}`}
                       />
@@ -1525,6 +1526,7 @@ function WorkoutSession({
                         type="number"
                         min="0"
                         value={set.reps || ''}
+                        placeholder="0"
                         onChange={(event) => updateSet(index, { reps: Number(event.target.value) })}
                         aria-label={`Repeticiones de la serie ${index + 1}`}
                       />
@@ -1540,7 +1542,7 @@ function WorkoutSession({
             </div>
             <button className="add-set-button" type="button" onClick={addSet}><Plus size={16} /> Añadir serie</button>
 
-            <div className="workout-tip"><Sparkles size={17} /><p><strong>Consejo de Kyon+</strong> Mantén 1–2 repeticiones en reserva y prioriza una técnica consistente.</p></div>
+            <div className="workout-tip"><Sparkles size={17} /><p><strong>Consejo de Kyon+</strong> Intenta llegar siempre cerca del fallo, manteniendo una técnica correcta.</p></div>
 
             <div className="workout-footer-actions">
               <button
