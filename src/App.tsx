@@ -1427,7 +1427,16 @@ function WorkoutSession({
   function updateSet(setIndex: number, patch: Partial<SetLog>) {
     setExerciseLogs((current) => current.map((entry, exerciseIndex) =>
       exerciseIndex === activeExercise
-        ? { ...entry, sets: entry.sets.map((set, index) => index === setIndex ? { ...set, ...patch } : set) }
+        ? {
+            ...entry,
+            sets: entry.sets.map((set, index) => {
+              if (index !== setIndex) return set;
+              const updatedSet = { ...set, ...patch };
+              return 'weight' in patch || 'reps' in patch
+                ? { ...updatedSet, done: updatedSet.weight > 0 && updatedSet.reps > 0 }
+                : updatedSet;
+            }),
+          }
         : entry,
     ));
   }
