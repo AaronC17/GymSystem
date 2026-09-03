@@ -39,6 +39,7 @@ import {
   type ChangeEvent,
   type DragEvent,
   type FormEvent,
+  type PointerEvent,
   type ReactNode,
   useEffect,
   useMemo,
@@ -1429,6 +1430,14 @@ function WorkoutSession({
     ));
   }
 
+  function focusSetInputWithoutScroll(event: PointerEvent<HTMLInputElement>) {
+    const activeInput = document.activeElement;
+    if (!(activeInput instanceof HTMLInputElement) || activeInput === event.currentTarget || !activeInput.closest('.set-table')) return;
+
+    event.preventDefault();
+    event.currentTarget.focus({ preventScroll: true });
+  }
+
   function addSet() {
     setExerciseLogs((current) => current.map((entry, index) => {
       if (index !== activeExercise) return entry;
@@ -1516,6 +1525,7 @@ function WorkoutSession({
                         step="0.5"
                         value={set.weight || ''}
                         placeholder="0"
+                        onPointerDown={focusSetInputWithoutScroll}
                         onChange={(event) => updateSet(index, { weight: Number(event.target.value) })}
                         aria-label={`Peso de la serie ${index + 1}`}
                       />
@@ -1527,6 +1537,7 @@ function WorkoutSession({
                         min="0"
                         value={set.reps || ''}
                         placeholder="0"
+                        onPointerDown={focusSetInputWithoutScroll}
                         onChange={(event) => updateSet(index, { reps: Number(event.target.value) })}
                         aria-label={`Repeticiones de la serie ${index + 1}`}
                       />

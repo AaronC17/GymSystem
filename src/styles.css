@@ -5054,6 +5054,7 @@ button:disabled {
     border-radius: 22px 22px 0 0;
   }
 
+  .routine-modal .editor-exercise input,
   .routine-modal input,
   .routine-modal select,
   .routine-modal textarea {
