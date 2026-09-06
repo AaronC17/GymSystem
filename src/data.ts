@@ -1,4 +1,9 @@
 import type { AppState, Exercise, Routine, Unit, WorkoutLog } from './types';
+import { isStoredState } from './stateSchema';
+
+export { isStoredState } from './stateSchema';
+
+export const LEGACY_STATE_KEY = 'tempo-app-state-v2';
 
 export const DAY_NAMES = [
   'Domingo',
@@ -66,60 +71,9 @@ export function createInitialState(): AppState {
   };
 }
 
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
-function isStoredState(value: unknown): value is AppState {
-  if (!value || typeof value !== 'object') return false;
-  const state = value as Partial<AppState>;
-  if (state.unit !== 'kg' && state.unit !== 'lb') return false;
-  if (!state.routine || typeof state.routine !== 'object' || !Array.isArray(state.routine.days)) return false;
-  if (typeof state.routine.id !== 'string' || typeof state.routine.name !== 'string') return false;
-
-  const validDays = state.routine.days.every((day) =>
-    typeof day.id === 'string' &&
-    Number.isInteger(day.dayOfWeek) && day.dayOfWeek >= 0 && day.dayOfWeek <= 6 &&
-    typeof day.title === 'string' &&
-    typeof day.focus === 'string' &&
-    typeof day.color === 'string' &&
-    isFiniteNumber(day.duration) &&
-    Array.isArray(day.exercises) && day.exercises.length > 0 &&
-    day.exercises.every((exercise) =>
-      typeof exercise.id === 'string' &&
-      typeof exercise.name === 'string' &&
-      Number.isInteger(exercise.sets) && exercise.sets > 0 &&
-      typeof exercise.reps === 'string' &&
-      isFiniteNumber(exercise.rest),
-    ),
-  );
-  if (!validDays || !Array.isArray(state.logs)) return false;
-
-  return state.logs.every((log) =>
-    typeof log.id === 'string' &&
-    /^\d{4}-\d{2}-\d{2}$/.test(log.date) &&
-    typeof log.routineDayId === 'string' &&
-    typeof log.title === 'string' &&
-    isFiniteNumber(log.duration) &&
-    typeof log.completed === 'boolean' &&
-    Array.isArray(log.exercises) &&
-    log.exercises.every((exercise) =>
-      typeof exercise.exerciseId === 'string' &&
-      typeof exercise.exerciseName === 'string' &&
-      Array.isArray(exercise.sets) &&
-      exercise.sets.every((set) =>
-        isFiniteNumber(set.weight) &&
-        isFiniteNumber(set.reps) &&
-        typeof set.done === 'boolean' &&
-        (set.unit === 'kg' || set.unit === 'lb'),
-      ),
-    ),
-  );
-}
-
-export function loadState(): AppState {
+export function readStoredState(key = LEGACY_STATE_KEY): AppState | null {
   try {
-    const saved = localStorage.getItem('tempo-app-state-v2');
+    const saved = localStorage.getItem(key);
     if (saved) {
       const parsed: unknown = JSON.parse(saved);
       if (isStoredState(parsed)) return parsed;
@@ -127,12 +81,16 @@ export function loadState(): AppState {
   } catch {
     // Fall back to a clean state if local storage is unavailable or invalid.
   }
-  return createInitialState();
+  return null;
 }
 
-export function saveState(state: AppState) {
+export function loadState(): AppState {
+  return readStoredState() ?? createInitialState();
+}
+
+export function saveState(state: AppState, key = LEGACY_STATE_KEY) {
   try {
-    localStorage.setItem('tempo-app-state-v2', JSON.stringify(state));
+    localStorage.setItem(key, JSON.stringify(state));
     return true;
   } catch {
     return false;

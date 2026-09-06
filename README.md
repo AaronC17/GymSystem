@@ -13,14 +13,18 @@ Aplicación web para convertir rutinas de gimnasio en PDF en un registro de entr
 - Calendario mensual y anual con historial de entrenamientos.
 - Métricas de sesiones, consistencia, rachas y progresión basada en registros reales.
 - Estado inicial vacío: no se generan rutinas ni estadísticas de demostración.
-- Persistencia privada en el navegador, sin servidor.
+- Persistencia por usuario en MongoDB Atlas, sincronizada entre navegadores.
+- Migración protegida de los datos locales existentes antes de activar la sincronización.
 
 ## Acceso
 
-- Correo: `kyani1278@gmail.com` · Contraseña: `blackelcita666`
-- Correo: `contrerasaaron447@gmail.com` · Contraseña: `127812`
-- Correo: `dylancontreras@gmail.com` · Contraseña: `dylancontreras`
-- Correo: `fabriciogutierrez@gmail.com` · Contraseña: `fabriciogutierrez`
+El inicio de sesión se valida en el servidor. Las contraseñas no se incluyen en el cliente ni en esta documentación.
+
+## Variables de entorno
+
+- `MONGODB_URI`: conexión privada a MongoDB Atlas.
+- `SESSION_SECRET`: secreto aleatorio para firmar las sesiones.
+- `MONGODB_DB`: nombre opcional de la base de datos; por defecto se usa `kyon`.
 
 ## Desarrollo
 
@@ -28,10 +32,10 @@ Requiere Node.js 20 o posterior.
 
 ```bash
 npm install
-npm run dev
+vercel dev
 ```
 
-Para abrirla desde el teléfono, conecta ambos dispositivos a la misma red Wi-Fi y usa en el teléfono la dirección `Network` que muestra Vite, por ejemplo `http://192.168.1.25:5173`.
+Para trabajar solo en la interfaz sin las funciones de servidor se puede usar `npm run dev`.
 
 Para generar la versión de producción:
 

@@ -58,15 +58,26 @@ import {
   exerciseCount,
   fromDateKey,
   getLastExerciseSets,
-  loadState,
   localDateKey,
+  readStoredState,
   routineFromParsed,
   saveState,
   startOfWeek,
   uid,
 } from './data';
+import {
+  ApiError,
+  bootstrapRemoteState,
+  createMutation,
+  getRemoteSession,
+  getRemoteState,
+  loginRemote,
+  logoutRemote,
+  mutateRemoteState,
+} from './api';
 import type {
   AppState,
+  AuthUser,
   Exercise,
   ExerciseLog,
   Routine,
@@ -83,11 +94,6 @@ type ActiveWorkout = {
   date: string;
 };
 
-type AuthUser = {
-  name: string;
-  email: string;
-};
-
 type StoredWorkoutDraft = {
   routineDayId: string;
   date: string;
@@ -96,38 +102,11 @@ type StoredWorkoutDraft = {
   savedAt: string;
 };
 
-const ACTIVE_WORKOUT_KEY = 'tempo-active-workout-v1';
+const LEGACY_ACTIVE_WORKOUT_KEY = 'tempo-active-workout-v1';
 const AUTH_STORAGE_KEY = 'tempo-auth-user-v1';
-const ALLOWED_USERS: Array<{ email: string; password: string; name: string }> = [
-  { email: 'kyani1278@gmail.com', password: 'blackelcita666', name: 'Kyani' },
-  { email: 'contrerasaaron447@gmail.com', password: '127812', name: 'Aaron Contreras' },
-  { email: 'dylancontreras@gmail.com', password: 'dylancontreras', name: 'Dylan Contreras' },
-  { email: 'fabriciogutierrez@gmail.com', password: 'fabriciogutierrez', name: 'Fabricio Gutierrez' },
-];
+const AARON_EMAIL = 'contrerasaaron447@gmail.com';
 
-function readAuthUser(): AuthUser | null {
-  try {
-    const raw = sessionStorage.getItem(AUTH_STORAGE_KEY) ?? localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return null;
-    const user = JSON.parse(raw) as Partial<AuthUser>;
-    return typeof user.name === 'string' && typeof user.email === 'string' ? user as AuthUser : null;
-  } catch {
-    return null;
-  }
-}
-
-function storeAuthUser(user: AuthUser, remember: boolean) {
-  try {
-    sessionStorage.removeItem(AUTH_STORAGE_KEY);
-    localStorage.removeItem(AUTH_STORAGE_KEY);
-    const storage = remember ? localStorage : sessionStorage;
-    storage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-  } catch {
-    // Authentication remains valid for this render if storage is blocked.
-  }
-}
-
-function clearAuthUser() {
+function clearLegacyAuth() {
   try {
     sessionStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(AUTH_STORAGE_KEY);
@@ -136,9 +115,18 @@ function clearAuthUser() {
   }
 }
 
-function readWorkoutDraft(): StoredWorkoutDraft | null {
+function stateCacheKey(email: string) {
+  return `kyon-state-cache-v1:${email.trim().toLowerCase()}`;
+}
+
+function workoutDraftKey(email: string) {
+  return `kyon-active-workout-v1:${email.trim().toLowerCase()}`;
+}
+
+function readWorkoutDraft(email: string): StoredWorkoutDraft | null {
   try {
-    const raw = localStorage.getItem(ACTIVE_WORKOUT_KEY);
+    const raw = localStorage.getItem(workoutDraftKey(email))
+      ?? (email.trim().toLowerCase() === AARON_EMAIL ? localStorage.getItem(LEGACY_ACTIVE_WORKOUT_KEY) : null);
     if (!raw) return null;
     const draft = JSON.parse(raw) as Partial<StoredWorkoutDraft>;
     if (
@@ -167,9 +155,10 @@ function readWorkoutDraft(): StoredWorkoutDraft | null {
   return null;
 }
 
-function clearWorkoutDraft() {
+function clearWorkoutDraft(email: string) {
   try {
-    localStorage.removeItem(ACTIVE_WORKOUT_KEY);
+    localStorage.removeItem(workoutDraftKey(email));
+    if (email.trim().toLowerCase() === AARON_EMAIL) localStorage.removeItem(LEGACY_ACTIVE_WORKOUT_KEY);
   } catch {
     // Nothing else is required when private storage is unavailable.
   }
@@ -316,7 +305,7 @@ function Logo({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function LoginScreen({ onLogin }: { onLogin: (user: AuthUser, remember: boolean) => void }) {
+function LoginScreen({ onLogin }: { onLogin: (email: string, password: string, remember: boolean) => Promise<void> }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -325,23 +314,21 @@ function LoginScreen({ onLogin }: { onLogin: (user: AuthUser, remember: boolean)
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setNotice('');
     if (!email.trim() || !password) {
       setError('Ingresa tu correo y contraseña para continuar.');
       return;
     }
-    const matched = ALLOWED_USERS.find(
-      (u) => email.trim().toLowerCase() === u.email.toLowerCase() && password === u.password,
-    );
-    if (!matched) {
-      setError('Las credenciales no coinciden.');
-      return;
-    }
     setError('');
     setSubmitting(true);
-    window.setTimeout(() => onLogin({ name: matched.name, email: matched.email }, remember), 450);
+    try {
+      await onLogin(email.trim().toLowerCase(), password, remember);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'No fue posible iniciar sesión.');
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -425,7 +412,7 @@ function LoginScreen({ onLogin }: { onLogin: (user: AuthUser, remember: boolean)
 
           <p className="login-support">¿Necesitas ayuda? <button type="button" onClick={() => setNotice('Escríbenos a soporte@tempo.fit.')}>Contactar soporte</button></p>
         </div>
-        <div className="login-security"><ShieldCheck size={14} /> Tus datos de entrenamiento permanecen privados en este dispositivo.</div>
+        <div className="login-security"><ShieldCheck size={14} /> Tus datos se sincronizan de forma privada entre tus dispositivos.</div>
       </section>
     </main>
   );
@@ -1033,6 +1020,57 @@ function MiniMonth({
   );
 }
 
+function WorkoutHistoryModal({ date, logs, onClose }: { date: string; logs: WorkoutLog[]; onClose: () => void }) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="modal-backdrop history-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className="history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
+        <header className="history-modal-header">
+          <div><span>REGISTRO DEL DÍA</span><h2 id="history-modal-title">{capitalize(esDate.format(fromDateKey(date)))}</h2></div>
+          <button type="button" autoFocus onClick={onClose} aria-label="Cerrar registro"><X size={20} /></button>
+        </header>
+        <div className="history-modal-body">
+          {logs.map((log) => {
+            const completedSets = log.exercises.reduce((sum, exercise) => sum + exercise.sets.filter((set) => set.done).length, 0);
+            const totalSets = log.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
+            return (
+              <article className="history-session" key={log.id}>
+                <div className="history-session-heading">
+                  <div><span><Dumbbell size={17} /></span><div><h3>{log.title}</h3><p>{log.duration} min · {log.exercises.length} ejercicios · {completedSets}/{totalSets} series</p></div></div>
+                  <b><Check size={12} /> Finalizado</b>
+                </div>
+                <div className="history-exercises">
+                  {log.exercises.map((exercise) => (
+                    <section className="history-exercise" key={`${log.id}-${exercise.exerciseId}`}>
+                      <h4>{exercise.exerciseName}</h4>
+                      <div className="history-set-labels"><span>Serie</span><span>Peso</span><span>Reps</span><span>Estado</span></div>
+                      {exercise.sets.map((set, index) => (
+                        <div className={`history-set ${set.done ? 'done' : ''}`} key={index}>
+                          <span>{index + 1}</span>
+                          <strong>{set.weight} {set.unit}</strong>
+                          <strong>{set.reps}</strong>
+                          <b>{set.done ? <><Check size={12} /> Completada</> : 'Pendiente'}</b>
+                        </div>
+                      ))}
+                    </section>
+                  ))}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function CalendarView({
   routine,
   logs,
@@ -1046,6 +1084,7 @@ function CalendarView({
   const [month, setMonth] = useState(new Date(now.getFullYear(), now.getMonth(), 1));
   const [selected, setSelected] = useState(localDateKey(now));
   const [mode, setMode] = useState<'month' | 'year'>('month');
+  const [historyDate, setHistoryDate] = useState<string | null>(null);
   const dates = monthGridDates(month);
   const selectedDate = fromDateKey(selected);
   const selectedDay = getRoutineForDate(routine, selectedDate);
@@ -1062,8 +1101,8 @@ function CalendarView({
     <div className="page-content calendar-page">
       <div className="calendar-toolbar">
         <div className="view-switch">
-          <button className={mode === 'month' ? 'active' : ''} type="button" onClick={() => setMode('month')}>Mes</button>
-          <button className={mode === 'year' ? 'active' : ''} type="button" onClick={() => setMode('year')}>Año</button>
+          <button className={mode === 'month' ? 'active' : ''} type="button" aria-pressed={mode === 'month'} onClick={() => setMode('month')}>Mes</button>
+          <button className={mode === 'year' ? 'active' : ''} type="button" aria-pressed={mode === 'year'} onClick={() => setMode('year')}>Año</button>
         </div>
         <div className="month-navigation">
           <button type="button" aria-label={mode === 'month' ? 'Mes anterior' : 'Año anterior'} onClick={() => {
@@ -1116,9 +1155,14 @@ function CalendarView({
                     type="button"
                     key={key}
                     className={`calendar-cell ${outside ? 'outside' : ''} ${selected === key ? 'selected' : ''}`}
+                    aria-label={`${capitalize(esDate.format(date))}${log ? `, ${log.title}, entrenamiento registrado` : day ? `, ${day.title}, entrenamiento programado` : ''}`}
+                    aria-current={isToday ? 'date' : undefined}
+                    aria-pressed={selected === key}
+                    aria-haspopup={log ? 'dialog' : undefined}
                     onClick={() => {
                       setSelected(key);
                       if (outside) setMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+                      if (log) setHistoryDate(key);
                     }}
                   >
                     <span className={isToday ? 'today-number' : ''}>{date.getDate()}</span>
@@ -1161,6 +1205,7 @@ function CalendarView({
                     ))}
                   </div>
                 )}
+                {selectedLog && <button className="button button-dark full-button view-history-button" type="button" onClick={() => setHistoryDate(selected)}><FileText size={16} /> Ver registro completo</button>}
                 {selectedDay ? (
                   <button className={`button ${selectedLog ? 'button-light' : 'button-dark'} full-button`} type="button" onClick={() => onStart(selectedDay, selectedDate)}>
                     {selectedLog ? <><RotateCcw size={16} /> Volver a registrar</> : <><Play size={16} fill="currentColor" /> Registrar entrenamiento</>}
@@ -1179,6 +1224,7 @@ function CalendarView({
           </aside>
         </div>
       )}
+      {historyDate && <WorkoutHistoryModal date={historyDate} logs={logs.filter((log) => log.date === historyDate)} onClose={() => setHistoryDate(null)} />}
     </div>
   );
 }
@@ -1340,24 +1386,26 @@ function WorkoutSession({
   active,
   logs,
   unit,
+  userEmail,
   onClose,
   onFinish,
 }: {
   active: ActiveWorkout;
   logs: WorkoutLog[];
   unit: Unit;
+  userEmail: string;
   onClose: () => void;
   onFinish: (log: WorkoutLog) => void;
 }) {
   const existingWorkout = logs.find((log) => log.date === active.date && log.routineDayId === active.day.id);
   const restoredDraft = useMemo(() => {
-    const saved = readWorkoutDraft();
+    const saved = readWorkoutDraft(userEmail);
     if (saved?.routineDayId !== active.day.id || saved.date !== active.date) return null;
     const hasCurrentExercises = active.day.exercises.every((exercise) =>
       saved.exerciseLogs.some((entry) => entry.exerciseId === exercise.id || entry.exerciseName === exercise.name),
     );
     return hasCurrentExercises ? saved : null;
-  }, [active.date, active.day.exercises, active.day.id]);
+  }, [active.date, active.day.exercises, active.day.id, userEmail]);
   const [seconds, setSeconds] = useState(restoredDraft?.seconds ?? 0);
   const [activeExercise, setActiveExercise] = useState(0);
   const [showExit, setShowExit] = useState(false);
@@ -1402,7 +1450,7 @@ function WorkoutSession({
 
   useEffect(() => {
     try {
-      localStorage.setItem(ACTIVE_WORKOUT_KEY, JSON.stringify({
+      localStorage.setItem(workoutDraftKey(userEmail), JSON.stringify({
         routineDayId: active.day.id,
         date: active.date,
         seconds,
@@ -1412,7 +1460,7 @@ function WorkoutSession({
     } catch {
       // The active session still works when browser storage is unavailable.
     }
-  }, [active.date, active.day.id, exerciseLogs, seconds]);
+  }, [active.date, active.day.id, exerciseLogs, seconds, userEmail]);
 
   const totalSets = exerciseLogs.reduce((sum, exercise) => sum + exercise.sets.length, 0);
   const completedSets = exerciseLogs.reduce((sum, exercise) => sum + exercise.sets.filter((set) => set.done).length, 0);
@@ -1459,7 +1507,7 @@ function WorkoutSession({
 
   function finish() {
     setShowIncompleteFinish(false);
-    clearWorkoutDraft();
+    clearWorkoutDraft(userEmail);
     onFinish({
       id: existingWorkout?.id ?? uid('workout'),
       date: active.date,
@@ -1601,7 +1649,7 @@ function WorkoutSession({
               <button className="button button-dark" type="button" onClick={() => setShowExit(false)}>Continuar</button>
               <button className="button button-light" type="button" onClick={onClose}>Guardar y salir</button>
             </div>
-            <button className="discard-session" type="button" onClick={() => { clearWorkoutDraft(); onClose(); }}>Descartar esta sesión</button>
+            <button className="discard-session" type="button" onClick={() => { clearWorkoutDraft(userEmail); onClose(); }}>Descartar esta sesión</button>
           </div>
         </div>
       )}
@@ -1866,7 +1914,7 @@ function DeleteRoutineModal({
         <div className="delete-routine-icon"><Trash2 size={24} /></div>
         <span>ELIMINAR RUTINA</span>
         <h2 id="delete-routine-title">¿Borrar esta rutina?</h2>
-        <p id="delete-routine-description">Se eliminará la rutina <strong>{routineName}</strong> y todo su historial asociado. Esta acción no se puede deshacer.</p>
+        <p id="delete-routine-description">Se eliminará la rutina <strong>{routineName}</strong>, pero tus entrenamientos registrados seguirán guardados en el calendario.</p>
         <div className="delete-routine-actions">
           <button className="button button-light" type="button" onClick={onClose}>Cancelar</button>
           <button className="button button-danger" type="button" onClick={onConfirm}><Trash2 size={16} /> Borrar rutina</button>
@@ -1896,30 +1944,117 @@ function CompletionModal({ log, onClose }: { log: WorkoutLog; onClose: () => voi
   );
 }
 
+function SyncScreen({
+  title,
+  description,
+  actionLabel,
+  onAction,
+  onLogout,
+}: {
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  onLogout?: () => void;
+}) {
+  return (
+    <main className="sync-page">
+      <section className="sync-card">
+        <Logo />
+        <span>DATOS SINCRONIZADOS</span>
+        <h1>{title}</h1>
+        <p>{description}</p>
+        {actionLabel && onAction && <button className="button button-dark" type="button" onClick={onAction}>{actionLabel}</button>}
+        {onLogout && <button className="sync-logout" type="button" onClick={onLogout}>Cerrar sesión</button>}
+      </section>
+    </main>
+  );
+}
+
+function MigrationScreen({
+  user,
+  candidate,
+  busy,
+  error,
+  onMigrate,
+  onLogout,
+}: {
+  user: AuthUser;
+  candidate: AppState;
+  busy: boolean;
+  error: string;
+  onMigrate: () => void;
+  onLogout: () => void;
+}) {
+  const completedLogs = candidate.logs.filter((log) => log.completed);
+  const latestLog = [...completedLogs].sort((a, b) => b.date.localeCompare(a.date))[0];
+  const isAaron = user.email === AARON_EMAIL;
+  const canMigrate = !isAaron || completedLogs.length > 0;
+
+  return (
+    <main className="sync-page">
+      <section className="sync-card migration-card">
+        <Logo />
+        <span>MIGRACIÓN ÚNICA</span>
+        <h1>{canMigrate ? 'Encontramos tus datos locales.' : 'Abre el Safari con tu progreso.'}</h1>
+        <p>{canMigrate
+          ? 'Confirma este resumen para convertir este navegador en el origen inicial de tu cuenta. Después, MongoDB será la única fuente para todos tus dispositivos.'
+          : 'Esta cuenta aún no tiene datos en MongoDB. Por seguridad, solo puede inicializarse desde el navegador que conserva al menos un entrenamiento completado.'}</p>
+        <div className="migration-summary">
+          <div><span>RUTINA LOCAL</span><strong>{candidate.routine.name || 'Sin rutina'}</strong></div>
+          <div><span>SESIONES COMPLETADAS</span><strong>{completedLogs.length}</strong></div>
+          <div><span>ÚLTIMO REGISTRO</span><strong>{latestLog ? `${latestLog.title} · ${latestLog.date}` : 'Ninguno'}</strong></div>
+        </div>
+        <small>La copia local original no se borrará y permanecerá como respaldo.</small>
+        {error && <p className="sync-error">{error}</p>}
+        <button className="button button-accent" type="button" disabled={!canMigrate || busy} onClick={onMigrate}>
+          {busy ? 'Sincronizando...' : 'Conservar y sincronizar estos datos'}
+        </button>
+        <button className="sync-logout" type="button" onClick={onLogout}>Cerrar sesión</button>
+      </section>
+    </main>
+  );
+}
+
 function Toast({ message }: { message: string }) {
   return <div className="toast"><span><Check size={14} /></span>{message}</div>;
 }
 
 export default function App() {
-  const [state, setState] = useState<AppState>(loadState);
-  const [authUser, setAuthUser] = useState<AuthUser | null>(readAuthUser);
+  const initialState = createInitialState();
+  const [state, setState] = useState<AppState>(initialState);
+  const stateRef = useRef(state);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [dataStatus, setDataStatus] = useState<'idle' | 'loading' | 'migration' | 'ready' | 'error'>('idle');
+  const [migrationCandidate, setMigrationCandidate] = useState<AppState | null>(null);
+  const [migrationBusy, setMigrationBusy] = useState(false);
+  const [syncError, setSyncError] = useState('');
+  const syncQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingMutationsRef = useRef(0);
+  const syncFailedRef = useRef(false);
+  const latestRemoteStateRef = useRef<AppState | null>(null);
   const [page, setPage] = useState<Page>('inicio');
   const [builderMode, setBuilderMode] = useState<'import' | 'edit' | null>(null);
-  const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(() => {
-    const saved = readWorkoutDraft();
-    if (!saved) return null;
-    const day = state.routine.days.find((routineDay) => routineDay.id === saved.routineDayId);
-    if (day) return { day, date: saved.date };
-    clearWorkoutDraft();
-    return null;
-  });
+  const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
   const [completedLog, setCompletedLog] = useState<WorkoutLog | null>(null);
   const [toast, setToast] = useState('');
   const [deleteRoutineOpen, setDeleteRoutineOpen] = useState(false);
 
   useEffect(() => {
-    if (!saveState(state)) setToast('No se pudieron guardar los cambios en este navegador.');
-  }, [state]);
+    let active = true;
+    void getRemoteSession()
+      .then(async ({ user }) => {
+        if (!active) return;
+        setAuthUser(user);
+        await hydrateUser(user);
+      })
+      .catch((reason) => {
+        if (active && !(reason instanceof ApiError && reason.status === 401)) setSyncError('No fue posible comprobar la sesión.');
+      })
+      .finally(() => active && setAuthChecked(true));
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -1927,21 +2062,130 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  function adoptState(user: AuthUser, nextState: AppState) {
+    stateRef.current = nextState;
+    setState(nextState);
+    saveState(nextState, stateCacheKey(user.email));
+  }
+
+  function restoreWorkoutDraft(user: AuthUser, nextState: AppState) {
+    const saved = readWorkoutDraft(user.email);
+    const day = saved ? nextState.routine.days.find((routineDay) => routineDay.id === saved.routineDayId) : undefined;
+    setActiveWorkout(saved && day ? { day, date: saved.date } : null);
+  }
+
+  async function hydrateUser(user: AuthUser) {
+    setDataStatus('loading');
+    setSyncError('');
+    try {
+      const remote = await getRemoteState();
+      if (remote.state) {
+        adoptState(user, remote.state);
+        restoreWorkoutDraft(user, remote.state);
+        setMigrationCandidate(null);
+        setDataStatus('ready');
+        return;
+      }
+      const candidate = user.email === AARON_EMAIL
+        ? readStoredState() ?? createInitialState()
+        : readStoredState(stateCacheKey(user.email)) ?? createInitialState();
+      setMigrationCandidate(candidate);
+      setDataStatus('migration');
+    } catch (reason) {
+      setSyncError(reason instanceof Error ? reason.message : 'No fue posible cargar tus datos.');
+      setDataStatus('error');
+    }
+  }
+
+  async function migrateLocalState() {
+    if (!authUser || !migrationCandidate) return;
+    setMigrationBusy(true);
+    setSyncError('');
+    try {
+      const remote = await bootstrapRemoteState(migrationCandidate);
+      if (!remote.state) throw new Error('MongoDB no devolvió el estado migrado.');
+      adoptState(authUser, remote.state);
+      restoreWorkoutDraft(authUser, remote.state);
+      setMigrationCandidate(null);
+      setDataStatus('ready');
+      setToast('Datos sincronizados correctamente');
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 409) {
+        const remote = await getRemoteState().catch(() => null);
+        if (remote?.state) {
+          adoptState(authUser, remote.state);
+          restoreWorkoutDraft(authUser, remote.state);
+          setMigrationCandidate(null);
+          setDataStatus('ready');
+          setToast('Se cargaron los datos que ya estaban sincronizados');
+          return;
+        }
+      }
+      setSyncError(reason instanceof Error ? reason.message : 'No fue posible migrar los datos.');
+    } finally {
+      setMigrationBusy(false);
+    }
+  }
+
+  function queueRemoteMutation(mutation: Parameters<typeof mutateRemoteState>[0]) {
+    if (!authUser) return;
+    const user = authUser;
+    if (pendingMutationsRef.current === 0) {
+      syncFailedRef.current = false;
+      latestRemoteStateRef.current = null;
+    }
+    pendingMutationsRef.current += 1;
+    syncQueueRef.current = syncQueueRef.current
+      .then(async () => {
+        let lastError: unknown;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            const remote = await mutateRemoteState(mutation);
+            latestRemoteStateRef.current = remote.state;
+            return;
+          } catch (reason) {
+            lastError = reason;
+            if (reason instanceof ApiError && reason.status < 500) break;
+            await new Promise((resolve) => window.setTimeout(resolve, 450 * (attempt + 1)));
+          }
+        }
+        throw lastError;
+      })
+      .catch((reason) => {
+        syncFailedRef.current = true;
+        setToast(reason instanceof Error ? reason.message : 'El cambio quedó guardado solo en este dispositivo.');
+      })
+      .finally(() => {
+        pendingMutationsRef.current -= 1;
+        if (pendingMutationsRef.current === 0 && !syncFailedRef.current && latestRemoteStateRef.current) {
+          adoptState(user, latestRemoteStateRef.current);
+        }
+      });
+  }
+
+  function commitState(nextState: AppState, mutation: Parameters<typeof mutateRemoteState>[0]) {
+    if (!authUser) return;
+    adoptState(authUser, nextState);
+    queueRemoteMutation(mutation);
+  }
+
   function startWorkout(day: RoutineDay, date = new Date()) {
     setActiveWorkout({ day, date: localDateKey(date) });
   }
 
   function finishWorkout(log: WorkoutLog) {
-    setState((current) => ({
+    const current = stateRef.current;
+    const nextState = {
       ...current,
       logs: [...current.logs.filter((entry) => !(entry.date === log.date && entry.routineDayId === log.routineDayId)), log],
-    }));
+    };
+    commitState(nextState, createMutation({ type: 'upsertWorkout', log }));
     setActiveWorkout(null);
     setCompletedLog(log);
   }
 
   function saveRoutine(routine: Routine) {
-    setState((current) => ({ ...current, routine }));
+    commitState({ ...stateRef.current, routine }, createMutation({ type: 'setRoutine', routine }));
     setBuilderMode(null);
     setToast('Rutina guardada correctamente');
     setPage('rutina');
@@ -1953,47 +2197,70 @@ export default function App() {
 
   function deleteRoutine() {
     const emptyState = createInitialState();
-    clearWorkoutDraft();
-    setState((current) => ({ ...current, routine: emptyState.routine, logs: [] }));
+    if (authUser) clearWorkoutDraft(authUser.email);
+    commitState({ ...stateRef.current, routine: emptyState.routine }, createMutation({ type: 'deleteRoutine' }));
     setBuilderMode(null);
     setDeleteRoutineOpen(false);
     setCompletedLog(null);
     setActiveWorkout(null);
     setPage('inicio');
-    setToast('Rutina eliminada');
+    setToast('Rutina eliminada; el historial se conservó');
   }
 
-  function login(user: AuthUser, remember: boolean) {
-    storeAuthUser(user, remember);
+  async function login(email: string, password: string, remember: boolean) {
+    const { user } = await loginRemote(email, password, remember);
+    clearLegacyAuth();
     setAuthUser(user);
+    setAuthChecked(true);
+    await hydrateUser(user);
   }
 
   function logout() {
-    clearAuthUser();
+    void logoutRemote().catch(() => undefined);
+    clearLegacyAuth();
     setBuilderMode(null);
     setDeleteRoutineOpen(false);
     setCompletedLog(null);
     setActiveWorkout(null);
     setPage('inicio');
     setAuthUser(null);
+    const emptyState = createInitialState();
+    stateRef.current = emptyState;
+    setState(emptyState);
+    setMigrationCandidate(null);
+    setDataStatus('idle');
+    setSyncError('');
   }
 
+  function toggleUnit() {
+    const unit = stateRef.current.unit === 'kg' ? 'lb' : 'kg';
+    commitState({ ...stateRef.current, unit }, createMutation({ type: 'setUnit', unit }));
+  }
+
+  if (!authChecked) return <SyncScreen title="Comprobando tu sesión..." description="Estamos preparando tus datos de entrenamiento." />;
   if (!authUser) return <LoginScreen onLogin={login} />;
+  if (dataStatus === 'loading') return <SyncScreen title="Cargando tu progreso..." description="Sincronizando tu rutina y tus entrenamientos desde MongoDB." />;
+  if (dataStatus === 'migration' && migrationCandidate) {
+    return <MigrationScreen user={authUser} candidate={migrationCandidate} busy={migrationBusy} error={syncError} onMigrate={() => void migrateLocalState()} onLogout={logout} />;
+  }
+  if (dataStatus === 'error') {
+    return <SyncScreen title="No pudimos cargar tus datos." description={syncError || 'Comprueba tu conexión e inténtalo de nuevo.'} actionLabel="Reintentar" onAction={() => void hydrateUser(authUser)} onLogout={logout} />;
+  }
 
   const hasRoutine = state.routine.days.length > 0;
-  const pausedDraft = readWorkoutDraft();
+  const pausedDraft = readWorkoutDraft(authUser.email);
   const pausedDay = pausedDraft ? state.routine.days.find((day) => day.id === pausedDraft.routineDayId) : undefined;
   const quickWorkout = pausedDay && pausedDraft
     ? { day: pausedDay, date: fromDateKey(pausedDraft.date) }
     : getNextWorkout(state.routine, state.logs);
 
   let content: ReactNode;
-  if (!hasRoutine) {
+  if (page === 'calendario' && (hasRoutine || state.logs.length > 0)) {
+    content = <CalendarView routine={state.routine} logs={state.logs} onStart={startWorkout} />;
+  } else if (!hasRoutine) {
     content = <EmptyRoutineState page={page} onImport={() => setBuilderMode('import')} />;
   } else if (page === 'rutina') {
     content = <RoutineView routine={state.routine} logs={state.logs} unit={state.unit} onStart={startWorkout} onEdit={() => setBuilderMode('edit')} onImport={() => setBuilderMode('import')} onDelete={requestDeleteRoutine} />;
-  } else if (page === 'calendario') {
-    content = <CalendarView routine={state.routine} logs={state.logs} onStart={startWorkout} />;
   } else if (page === 'progreso') {
     content = <ProgressView state={state} onStart={startWorkout} />;
   } else {
@@ -2008,7 +2275,7 @@ export default function App() {
           page={page}
           unit={state.unit}
           user={authUser}
-           onToggleUnit={() => setState((current) => ({ ...current, unit: current.unit === 'kg' ? 'lb' : 'kg' }))}
+           onToggleUnit={toggleUnit}
            onImport={() => setBuilderMode('import')}
            onNotify={() => setToast('Todo al día. Tu próxima sesión está lista.')}
            onLogout={logout}
@@ -2020,7 +2287,7 @@ export default function App() {
       </main>
       {builderMode && <RoutineBuilderModal initialRoutine={builderMode === 'edit' ? state.routine : undefined} onClose={() => setBuilderMode(null)} onSave={saveRoutine} />}
       {deleteRoutineOpen && <DeleteRoutineModal routineName={state.routine.name} onClose={() => setDeleteRoutineOpen(false)} onConfirm={deleteRoutine} />}
-      {activeWorkout && <WorkoutSession active={activeWorkout} logs={state.logs} unit={state.unit} onClose={() => setActiveWorkout(null)} onFinish={finishWorkout} />}
+      {activeWorkout && <WorkoutSession active={activeWorkout} logs={state.logs} unit={state.unit} userEmail={authUser.email} onClose={() => setActiveWorkout(null)} onFinish={finishWorkout} />}
       {completedLog && <CompletionModal log={completedLog} onClose={() => { setCompletedLog(null); setPage('inicio'); }} />}
       {toast && <Toast message={toast} />}
     </div>

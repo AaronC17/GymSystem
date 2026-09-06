@@ -1,5 +1,10 @@
 export type Unit = 'kg' | 'lb';
 
+export type AuthUser = {
+  name: string;
+  email: string;
+};
+
 export type Exercise = {
   id: string;
   name: string;
@@ -57,6 +62,12 @@ export type AppState = {
   logs: WorkoutLog[];
   unit: Unit;
 };
+
+export type StateMutation =
+  | { id: string; type: 'setRoutine'; routine: Routine }
+  | { id: string; type: 'upsertWorkout'; log: WorkoutLog }
+  | { id: string; type: 'deleteRoutine' }
+  | { id: string; type: 'setUnit'; unit: Unit };
 
 export type ParsedRoutine = {
   name: string;
