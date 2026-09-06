@@ -8,7 +8,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const database = await getDatabase();
     await database.command({ ping: 1 });
     return res.status(200).json({ ok: true });
-  } catch {
+  } catch (error) {
+    console.error('Health check failed', error instanceof Error ? error.message : error);
     return res.status(503).json({ ok: false });
   }
 }
