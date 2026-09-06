@@ -1406,7 +1406,14 @@ function WorkoutSession({
     );
     return hasCurrentExercises ? saved : null;
   }, [active.date, active.day.exercises, active.day.id, userEmail]);
-  const [seconds, setSeconds] = useState(restoredDraft?.seconds ?? 0);
+  const [seconds, setSeconds] = useState(() => {
+    const base = restoredDraft?.seconds ?? 0;
+    if (!restoredDraft?.savedAt) return base;
+    const savedAtTime = new Date(restoredDraft.savedAt).getTime();
+    if (!Number.isFinite(savedAtTime)) return base;
+    return base + Math.max(0, Math.floor((Date.now() - savedAtTime) / 1000));
+  });
+  const lastTickRef = useRef(Date.now());
   const [activeExercise, setActiveExercise] = useState(0);
   const [showExit, setShowExit] = useState(false);
   const [showIncompleteFinish, setShowIncompleteFinish] = useState(false);
@@ -1444,7 +1451,15 @@ function WorkoutSession({
   });
 
   useEffect(() => {
-    const timer = window.setInterval(() => setSeconds((value) => value + 1), 1000);
+    lastTickRef.current = Date.now();
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      const delta = Math.floor((now - lastTickRef.current) / 1000);
+      if (delta >= 1) {
+        lastTickRef.current += delta * 1000;
+        setSeconds((value) => value + delta);
+      }
+    }, 1000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -1643,8 +1658,8 @@ function WorkoutSession({
         <div className="confirm-overlay" onMouseDown={(event) => event.target === event.currentTarget && setShowExit(false)}>
           <div className="confirm-dialog">
             <span><Clock3 size={24} /></span>
-            <h3>¿Pausar entrenamiento?</h3>
-            <p>Tu avance se guarda automáticamente. Puedes retomarlo al abrir de nuevo este entrenamiento.</p>
+            <h3>¿Salir del entrenamiento?</h3>
+            <p>Tu avance se guarda automáticamente y el tiempo seguirá corriendo hasta que finalices o descartes la sesión.</p>
             <div className="confirm-actions">
               <button className="button button-dark" type="button" onClick={() => setShowExit(false)}>Continuar</button>
               <button className="button button-light" type="button" onClick={onClose}>Guardar y salir</button>
@@ -2034,6 +2049,8 @@ export default function App() {
   const pendingMutationsRef = useRef(0);
   const syncFailedRef = useRef(false);
   const latestRemoteStateRef = useRef<AppState | null>(null);
+  const syncEpochRef = useRef(0);
+  const mutationsIssuedRef = useRef(0);
   const [page, setPage] = useState<Page>('inicio');
   const [builderMode, setBuilderMode] = useState<'import' | 'edit' | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
@@ -2075,50 +2092,79 @@ export default function App() {
   }
 
   async function hydrateUser(user: AuthUser) {
-    setDataStatus('loading');
+    const epoch = ++syncEpochRef.current;
+    const issuedAtFetch = mutationsIssuedRef.current;
+    const cached = readStoredState(stateCacheKey(user.email));
+    // Show cached data instantly so login never blocks on the network. The
+    // remote fetch below only reconciles quietly in the background.
+    if (cached) {
+      stateRef.current = cached;
+      setState(cached);
+      restoreWorkoutDraft(user, cached);
+      setMigrationCandidate(null);
+      setDataStatus('ready');
+    } else {
+      setDataStatus('loading');
+    }
     setSyncError('');
+
+    function settleRemote(nextState: AppState | null) {
+      if (epoch !== syncEpochRef.current) return;
+      if (nextState && mutationsIssuedRef.current === issuedAtFetch) adoptState(user, nextState);
+      if (!cached) restoreWorkoutDraft(user, stateRef.current);
+      setMigrationCandidate(null);
+      setDataStatus('ready');
+    }
+
+    let remoteState: AppState | null;
     try {
-      const remote = await getRemoteState();
-      if (remote.state) {
-        adoptState(user, remote.state);
-        restoreWorkoutDraft(user, remote.state);
-        setMigrationCandidate(null);
-        setDataStatus('ready');
+      remoteState = (await getRemoteState()).state;
+    } catch (reason) {
+      if (epoch !== syncEpochRef.current) return;
+      if (cached) {
+        setToast('No se pudo sincronizar. Revisa tu conexión.');
         return;
       }
-      const candidate = user.email === AARON_EMAIL
-        ? readStoredState() ?? createInitialState()
-        : readStoredState(stateCacheKey(user.email)) ?? createInitialState();
-      const hasLocalData = candidate.routine.days.length > 0 || candidate.logs.length > 0;
-      if (!hasLocalData) {
-        try {
-          const bootstrapped = await bootstrapRemoteState(candidate);
-          if (!bootstrapped.state) throw new Error('MongoDB no devolvió el estado migrado.');
-          adoptState(user, bootstrapped.state);
-          restoreWorkoutDraft(user, bootstrapped.state);
-          setMigrationCandidate(null);
-          setDataStatus('ready');
-          return;
-        } catch (reason) {
-          if (reason instanceof ApiError && reason.status === 409) {
-            const remote = await getRemoteState().catch(() => null);
-            if (remote?.state) {
-              adoptState(user, remote.state);
-              restoreWorkoutDraft(user, remote.state);
-              setMigrationCandidate(null);
-              setDataStatus('ready');
-              return;
-            }
-          }
-          throw reason;
-        }
-      }
-      setMigrationCandidate(candidate);
-      setDataStatus('migration');
-    } catch (reason) {
       setSyncError(reason instanceof Error ? reason.message : 'No fue posible cargar tus datos.');
       setDataStatus('error');
+      return;
     }
+    if (epoch !== syncEpochRef.current) return;
+    if (remoteState) {
+      settleRemote(remoteState);
+      return;
+    }
+    const candidate = user.email === AARON_EMAIL
+      ? readStoredState() ?? cached ?? createInitialState()
+      : cached ?? createInitialState();
+    const hasLocalData = candidate.routine.days.length > 0 || candidate.logs.length > 0;
+    if (!hasLocalData) {
+      try {
+        const bootstrapped = await bootstrapRemoteState(candidate);
+        if (epoch !== syncEpochRef.current) return;
+        if (!bootstrapped.state) throw new Error('MongoDB no devolvió el estado migrado.');
+        settleRemote(bootstrapped.state);
+      } catch (reason) {
+        if (epoch !== syncEpochRef.current) return;
+        if (reason instanceof ApiError && reason.status === 409) {
+          const refetched = await getRemoteState().catch(() => null);
+          if (epoch !== syncEpochRef.current) return;
+          if (refetched?.state) {
+            settleRemote(refetched.state);
+            return;
+          }
+        }
+        if (cached) {
+          setToast('No se pudo sincronizar. Revisa tu conexión.');
+          return;
+        }
+        setSyncError(reason instanceof Error ? reason.message : 'No fue posible cargar tus datos.');
+        setDataStatus('error');
+      }
+      return;
+    }
+    setMigrationCandidate(candidate);
+    setDataStatus('migration');
   }
 
   async function migrateLocalState() {
@@ -2189,6 +2235,7 @@ export default function App() {
 
   function commitState(nextState: AppState, mutation: Parameters<typeof mutateRemoteState>[0]) {
     if (!authUser) return;
+    mutationsIssuedRef.current += 1;
     adoptState(authUser, nextState);
     queueRemoteMutation(mutation);
   }
@@ -2240,6 +2287,7 @@ export default function App() {
   }
 
   function logout() {
+    syncEpochRef.current += 1;
     void logoutRemote().catch(() => undefined);
     clearLegacyAuth();
     setBuilderMode(null);
@@ -2263,7 +2311,6 @@ export default function App() {
 
   if (!authChecked) return <SyncScreen title="Comprobando tu sesión..." description="Estamos preparando tus datos de entrenamiento." />;
   if (!authUser) return <LoginScreen onLogin={login} />;
-  if (dataStatus === 'loading') return <SyncScreen title="Cargando tu progreso..." description="Sincronizando tu rutina y tus entrenamientos desde MongoDB." />;
   if (dataStatus === 'migration' && migrationCandidate) {
     return <MigrationScreen user={authUser} candidate={migrationCandidate} busy={migrationBusy} error={syncError} onMigrate={() => void migrateLocalState()} onLogout={logout} />;
   }
@@ -2279,7 +2326,14 @@ export default function App() {
     : getNextWorkout(state.routine, state.logs);
 
   let content: ReactNode;
-  if (page === 'calendario' && (hasRoutine || state.logs.length > 0)) {
+  if (dataStatus === 'loading') {
+    content = (
+      <div className="page-content syncing-content" aria-live="polite">
+        <i className="login-spinner" aria-hidden="true" />
+        <p>Sincronizando tus datos…</p>
+      </div>
+    );
+  } else if (page === 'calendario' && (hasRoutine || state.logs.length > 0)) {
     content = <CalendarView routine={state.routine} logs={state.logs} onStart={startWorkout} />;
   } else if (!hasRoutine) {
     content = <EmptyRoutineState page={page} onImport={() => setBuilderMode('import')} />;
