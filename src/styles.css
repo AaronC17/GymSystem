@@ -3164,8 +3164,7 @@ button:disabled {
   }
 
   .history-modal {
-    max-height: calc(100vh - 114px);
-    max-height: calc(100dvh - 114px);
+    max-height: 80%;
   }
 }
 
@@ -5842,13 +5841,12 @@ button:disabled {
 @media (max-width: 720px) {
   .modal-backdrop.history-backdrop {
     place-items: center;
-    padding: 16px 16px 92px;
+    padding: 16px;
   }
 
   .history-modal {
     width: 100%;
-    max-height: calc(100vh - 108px);
-    max-height: calc(100dvh - 108px);
+    max-height: 72%;
     border-radius: 22px;
   }
 
