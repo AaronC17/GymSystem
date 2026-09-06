@@ -3157,6 +3157,18 @@ button:disabled {
   }
 }
 
+@media (max-width: 960px) {
+  /* Keep the history card clear of the bottom menu bar. */
+  .modal-backdrop.history-backdrop {
+    padding-bottom: 92px;
+  }
+
+  .history-modal {
+    max-height: calc(100vh - 114px);
+    max-height: calc(100dvh - 114px);
+  }
+}
+
 /* Progress */
 .progress-summary-grid {
   display: grid;
@@ -5830,13 +5842,13 @@ button:disabled {
 @media (max-width: 720px) {
   .modal-backdrop.history-backdrop {
     place-items: center;
-    padding: 16px;
+    padding: 16px 16px 92px;
   }
 
   .history-modal {
     width: 100%;
-    max-height: calc(100vh - 32px);
-    max-height: calc(100dvh - 32px);
+    max-height: calc(100vh - 108px);
+    max-height: calc(100dvh - 108px);
     border-radius: 22px;
   }
 

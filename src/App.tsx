@@ -115,6 +115,25 @@ function clearLegacyAuth() {
   }
 }
 
+let bodyScrollLockCount = 0;
+
+function useLockBodyScroll() {
+  useEffect(() => {
+    bodyScrollLockCount += 1;
+    if (bodyScrollLockCount === 1) {
+      document.body.dataset.kyonPrevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      bodyScrollLockCount = Math.max(0, bodyScrollLockCount - 1);
+      if (bodyScrollLockCount === 0) {
+        document.body.style.overflow = document.body.dataset.kyonPrevOverflow ?? '';
+        delete document.body.dataset.kyonPrevOverflow;
+      }
+    };
+  }, []);
+}
+
 function stateCacheKey(email: string) {
   return `kyon-state-cache-v1:${email.trim().toLowerCase()}`;
 }
@@ -1021,6 +1040,7 @@ function MiniMonth({
 }
 
 function WorkoutHistoryModal({ date, logs, onClose }: { date: string; logs: WorkoutLog[]; onClose: () => void }) {
+  useLockBodyScroll();
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose();
@@ -1397,6 +1417,7 @@ function WorkoutSession({
   onClose: () => void;
   onFinish: (log: WorkoutLog) => void;
 }) {
+  useLockBodyScroll();
   const existingWorkout = logs.find((log) => log.date === active.date && log.routineDayId === active.day.id);
   const restoredDraft = useMemo(() => {
     const saved = readWorkoutDraft(userEmail);
@@ -1695,6 +1716,7 @@ function RoutineBuilderModal({
   onClose: () => void;
   onSave: (routine: Routine) => void;
 }) {
+  useLockBodyScroll();
   const [stage, setStage] = useState<'upload' | 'parsing' | 'review' | 'error'>(initialRoutine ? 'review' : 'upload');
   const [draft, setDraft] = useState<Routine | null>(initialRoutine ? cloneRoutine(initialRoutine) : null);
   const [fileName, setFileName] = useState(initialRoutine?.sourceName ?? '');
@@ -1914,6 +1936,7 @@ function DeleteRoutineModal({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  useLockBodyScroll();
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose();
@@ -1940,6 +1963,7 @@ function DeleteRoutineModal({
 }
 
 function CompletionModal({ log, onClose }: { log: WorkoutLog; onClose: () => void }) {
+  useLockBodyScroll();
   const sets = log.exercises.reduce((sum, exercise) => sum + exercise.sets.filter((set) => set.done).length, 0);
   return (
     <div className="modal-backdrop completion-backdrop">
@@ -2309,7 +2333,7 @@ export default function App() {
     commitState({ ...stateRef.current, unit }, createMutation({ type: 'setUnit', unit }));
   }
 
-  if (!authChecked) return <SyncScreen title="Comprobando tu sesión..." description="Estamos preparando tus datos de entrenamiento." />;
+  if (!authChecked) return null;
   if (!authUser) return <LoginScreen onLogin={login} />;
   if (dataStatus === 'migration' && migrationCandidate) {
     return <MigrationScreen user={authUser} candidate={migrationCandidate} busy={migrationBusy} error={syncError} onMigrate={() => void migrateLocalState()} onLogout={logout} />;
