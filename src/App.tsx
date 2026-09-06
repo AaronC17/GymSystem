@@ -2089,6 +2089,30 @@ export default function App() {
       const candidate = user.email === AARON_EMAIL
         ? readStoredState() ?? createInitialState()
         : readStoredState(stateCacheKey(user.email)) ?? createInitialState();
+      const hasLocalData = candidate.routine.days.length > 0 || candidate.logs.length > 0;
+      if (!hasLocalData) {
+        try {
+          const bootstrapped = await bootstrapRemoteState(candidate);
+          if (!bootstrapped.state) throw new Error('MongoDB no devolvió el estado migrado.');
+          adoptState(user, bootstrapped.state);
+          restoreWorkoutDraft(user, bootstrapped.state);
+          setMigrationCandidate(null);
+          setDataStatus('ready');
+          return;
+        } catch (reason) {
+          if (reason instanceof ApiError && reason.status === 409) {
+            const remote = await getRemoteState().catch(() => null);
+            if (remote?.state) {
+              adoptState(user, remote.state);
+              restoreWorkoutDraft(user, remote.state);
+              setMigrationCandidate(null);
+              setDataStatus('ready');
+              return;
+            }
+          }
+          throw reason;
+        }
+      }
       setMigrationCandidate(candidate);
       setDataStatus('migration');
     } catch (reason) {
