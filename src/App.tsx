@@ -42,6 +42,7 @@ import {
   type PointerEvent,
   type ReactNode,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -225,6 +226,53 @@ function findLogForDate(logs: WorkoutLog[], date: Date, routineDayId?: string) {
   );
 }
 
+function isDateTrained(logs: WorkoutLog[], date: Date) {
+  const key = localDateKey(date);
+  return logs.some((log) => log.date === key && log.completed);
+}
+
+function findLastLogForDate(logs: WorkoutLog[], key: string) {
+  for (let index = logs.length - 1; index >= 0; index -= 1) {
+    if (logs[index].date === key) return logs[index];
+  }
+  return undefined;
+}
+
+function trainedDateSet(logs: WorkoutLog[]) {
+  return new Set(logs.filter((log) => log.completed).map((log) => log.date));
+}
+
+function getLogStreak(logs: WorkoutLog[]) {
+  const trained = trainedDateSet(logs);
+  let streak = 0;
+  const today = new Date();
+  for (let offset = 0; offset < 180; offset += 1) {
+    if (trained.has(localDateKey(addDays(today, -offset)))) {
+      streak += 1;
+      continue;
+    }
+    if (offset === 0) continue;
+    break;
+  }
+  return streak;
+}
+
+function getLogBestStreak(logs: WorkoutLog[]) {
+  const trained = trainedDateSet(logs);
+  let current = 0;
+  let best = 0;
+  const today = new Date();
+  for (let offset = 180; offset >= 0; offset -= 1) {
+    if (trained.has(localDateKey(addDays(today, -offset)))) {
+      current += 1;
+      best = Math.max(best, current);
+    } else {
+      current = 0;
+    }
+  }
+  return best;
+}
+
 function getNextWorkout(routine: Routine, logs: WorkoutLog[], from = new Date()) {
   if (routine.days.length === 0) return null;
   for (let offset = 0; offset <= 14; offset += 1) {
@@ -256,7 +304,7 @@ function getStreak(routine: Routine, logs: WorkoutLog[]) {
     const date = addDays(today, -offset);
     const planned = getRoutineForDate(routine, date);
     if (!planned) continue;
-    const completed = findLogForDate(logs, date, planned.id)?.completed;
+    const completed = isDateTrained(logs, date);
     if (!completed && offset === 0) continue;
     if (!completed) break;
     streak += 1;
@@ -272,7 +320,7 @@ function getBestStreak(routine: Routine, logs: WorkoutLog[]) {
     const date = addDays(today, -offset);
     const planned = getRoutineForDate(routine, date);
     if (!planned) continue;
-    if (findLogForDate(logs, date, planned.id)?.completed) {
+    if (isDateTrained(logs, date)) {
       current += 1;
       best = Math.max(best, current);
     } else {
@@ -291,10 +339,7 @@ function getRecentConsistency(routine: Routine, logs: WorkoutLog[], weeks = 4) {
     const start = addDays(currentWeek, (index - weeks + 1) * 7);
     const dates = Array.from({ length: 7 }, (_, dayIndex) => addDays(start, dayIndex));
     const plannedDates = dates.filter((date) => localDateKey(date) <= todayKey && getRoutineForDate(routine, date));
-    const completed = plannedDates.filter((date) => {
-      const day = getRoutineForDate(routine, date);
-      return day && findLogForDate(logs, date, day.id)?.completed;
-    }).length;
+    const completed = plannedDates.filter((date) => isDateTrained(logs, date)).length;
     plannedTotal += plannedDates.length;
     completedTotal += completed;
     return plannedDates.length ? Math.round((completed / plannedDates.length) * 100) : 0;
@@ -566,14 +611,18 @@ function Topbar({
   );
 }
 
-function EmptyRoutineState({ page, onImport }: { page: Page; onImport: () => void }) {
+function EmptyRoutineState({ page, hasLogs = false, onImport }: { page: Page; hasLogs?: boolean; onImport: () => void }) {
   const context: Record<Page, { eyebrow: string; title: string; description: string }> = {
     inicio: {
       eyebrow: 'EMPIEZA POR TU PLAN',
       title: 'Tu espacio está listo. Falta tu rutina.',
       description: 'Sube el PDF que te entregó tu entrenador. Kyon+ leerá su estructura y organizará cada ejercicio en el día correspondiente.',
     },
-    rutina: {
+    rutina: hasLogs ? {
+      eyebrow: 'SIN RUTINA ACTIVA',
+      title: 'Importa tu próxima rutina.',
+      description: 'Tu historial de entrenamientos sigue guardado. Importa un plan nuevo para seguir registrando sesiones.',
+    } : {
       eyebrow: 'SIN RUTINA ACTIVA',
       title: 'Importa tu primera rutina.',
       description: 'Detectaremos días, nombres de ejercicios, series y repeticiones antes de incorporarlos al sistema.',
@@ -634,7 +683,7 @@ function WeekStrip({ routine, logs }: { routine: Routine; logs: WorkoutLog[] }) 
       {getWeekDates(new Date()).map((date) => {
         const key = localDateKey(date);
         const routineDay = getRoutineForDate(routine, date);
-        const completed = routineDay && findLogForDate(logs, date, routineDay.id)?.completed;
+        const completed = isDateTrained(logs, date);
         const isToday = key === todayKey;
         return (
           <div
@@ -772,13 +821,13 @@ function Dashboard({
 }) {
   const { routine, logs } = state;
   const next = getNextWorkout(routine, logs);
-  if (!next) return <EmptyRoutineState page="inicio" onImport={onImport} />;
+  if (!next) {
+    if (logs.length === 0) return <EmptyRoutineState page="inicio" onImport={onImport} />;
+    return <HistoryDashboard state={state} onNavigate={onNavigate} onImport={onImport} />;
+  }
   const weekDates = getWeekDates(new Date());
   const weekPlanned = weekDates.filter((date) => getRoutineForDate(routine, date)).length;
-  const weekCompleted = weekDates.filter((date) => {
-    const day = getRoutineForDate(routine, date);
-    return day && findLogForDate(logs, date, day.id)?.completed;
-  }).length;
+  const weekCompleted = weekDates.filter((date) => getRoutineForDate(routine, date) && isDateTrained(logs, date)).length;
   const completion = weekPlanned ? Math.round((weekCompleted / weekPlanned) * 100) : 0;
   const currentPoints = weeklySessionPoints(logs);
   const latestSessions = currentPoints.at(-1)?.value ?? 0;
@@ -898,6 +947,75 @@ function Dashboard({
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+function HistoryDashboard({
+  state,
+  onNavigate,
+  onImport,
+}: {
+  state: AppState;
+  onNavigate: (page: Page) => void;
+  onImport: () => void;
+}) {
+  const { logs } = state;
+  const monthLogs = getMonthLogs(logs, new Date());
+  const monthMinutes = monthLogs.reduce((sum, log) => sum + log.duration, 0);
+  const currentPoints = weeklySessionPoints(logs);
+  const latestSessions = currentPoints.at(-1)?.value ?? 0;
+  const previousSessions = currentPoints.at(-2)?.value ?? 0;
+  const sessionChange = previousSessions ? Math.round(((latestSessions - previousSessions) / previousSessions) * 100) : 0;
+  const streak = getLogStreak(logs);
+
+  return (
+    <div className="page-content dashboard-page">
+      <section className="dashboard-intro">
+        <p>{capitalize(esDate.format(new Date()))}</p>
+        <div className="readiness-pill"><i /> Tu historial sigue aquí</div>
+      </section>
+
+      <section className="card history-prompt-card">
+        <span><Dumbbell size={20} /></span>
+        <div>
+          <small>HISTORIAL CONSERVADO</small>
+          <h3>Borraste tu rutina, no tu progreso.</h3>
+          <p>Tienes {logs.length} {logs.length === 1 ? 'sesión registrada' : 'sesiones registradas'}. Importa un plan nuevo para seguir entrenando.</p>
+        </div>
+        <div className="history-prompt-actions">
+          <button className="button button-accent" type="button" onClick={onImport}><Upload size={16} /> Importar rutina</button>
+          <button className="button button-light" type="button" onClick={() => onNavigate('calendario')}>Ver calendario</button>
+        </div>
+      </section>
+
+      <div className="metric-row">
+        <div className="metric-card">
+          <span className="metric-icon lime"><Dumbbell size={19} /></span>
+          <div><small>ENTRENAMIENTOS</small><strong>{monthLogs.length}<em>este mes</em></strong></div>
+        </div>
+        <div className="metric-card">
+          <span className="metric-icon lavender"><Flame size={19} /></span>
+          <div><small>RACHA ACTUAL</small><strong>{streak}<em>sesiones</em></strong></div>
+        </div>
+        <div className="metric-card">
+          <span className="metric-icon peach"><Clock3 size={19} /></span>
+          <div><small>TIEMPO ENTRENADO</small><strong>{monthMinutes}<em>min este mes</em></strong></div>
+        </div>
+      </div>
+
+      <section className="card progress-preview">
+        <div className="card-heading simple">
+          <div><span>SESIONES DE ENTRENAMIENTO</span><h3>Tu constancia, semana a semana</h3></div>
+          <div className={`trend-pill ${sessionChange < 0 ? 'negative' : ''}`}>
+            <TrendingUp size={14} /> {sessionChange >= 0 ? '+' : ''}{sessionChange}%
+          </div>
+        </div>
+        <AreaChart points={currentPoints} compact emptyTitle="Aún no hay entrenamientos" emptyText="Tu actividad aparecerá aquí después de completar la primera sesión." />
+        <button className="text-button chart-link" type="button" onClick={() => onNavigate('progreso')}>
+          Analizar progreso <ArrowRight size={15} />
+        </button>
+      </section>
     </div>
   );
 }
@@ -1108,7 +1226,7 @@ function CalendarView({
   const dates = monthGridDates(month);
   const selectedDate = fromDateKey(selected);
   const selectedDay = getRoutineForDate(routine, selectedDate);
-  const selectedLog = logs.find((log) => log.date === selected);
+  const selectedLog = findLastLogForDate(logs, selected);
   const yearMonths = Array.from({ length: 12 }, (_, index) => new Date(month.getFullYear(), index, 1));
 
   function changeMonth(amount: number) {
@@ -1167,7 +1285,7 @@ function CalendarView({
               {dates.map((date) => {
                 const key = localDateKey(date);
                 const day = getRoutineForDate(routine, date);
-                const log = logs.find((entry) => entry.date === key);
+                const log = findLastLogForDate(logs, key);
                 const outside = date.getMonth() !== month.getMonth();
                 const isToday = key === localDateKey(now);
                 return (
@@ -1249,13 +1367,26 @@ function CalendarView({
   );
 }
 
-function getExerciseOptions(routine: Routine) {
+function getExerciseOptions(routine: Routine, logs: WorkoutLog[] = []) {
   const seen = new Set<string>();
-  return routine.days.flatMap((day) => day.exercises).filter((exercise) => {
+  const fromRoutine = routine.days.flatMap((day) => day.exercises).filter((exercise) => {
     if (seen.has(exercise.id)) return false;
     seen.add(exercise.id);
     return true;
   });
+  if (fromRoutine.length > 0 || logs.length === 0) return fromRoutine;
+  // Without a routine (deleted), derive the options from logged history so
+  // progress and bests stay visible. Matching below falls back to names.
+  const seenNames = new Set<string>();
+  const fromLogs: Exercise[] = [];
+  for (let index = logs.length - 1; index >= 0; index -= 1) {
+    for (const entry of logs[index].exercises) {
+      if (seenNames.has(entry.exerciseName)) continue;
+      seenNames.add(entry.exerciseName);
+      fromLogs.push({ id: `logged:${entry.exerciseName}`, name: entry.exerciseName, sets: 0, reps: '', rest: 0 });
+    }
+  }
+  return fromLogs;
 }
 
 function exerciseProgressPoints(logs: WorkoutLog[], exercise: Exercise, unit: Unit): ChartPoint[] {
@@ -1279,7 +1410,7 @@ function exerciseProgressPoints(logs: WorkoutLog[], exercise: Exercise, unit: Un
 
 function ProgressView({ state, onStart }: { state: AppState; onStart: (day: RoutineDay) => void }) {
   const { routine, logs, unit } = state;
-  const options = getExerciseOptions(routine);
+  const options = getExerciseOptions(routine, logs);
   const [exerciseId, setExerciseId] = useState(options[0]?.id ?? '');
   const selectedExercise = options.find((exercise) => exercise.id === exerciseId) ?? options[0];
   const exercisePoints = selectedExercise ? exerciseProgressPoints(logs, selectedExercise, unit) : [];
@@ -1298,16 +1429,25 @@ function ProgressView({ state, onStart }: { state: AppState; onStart: (day: Rout
     (sum, log) => sum + log.exercises.reduce((exerciseSum, exercise) => exerciseSum + exercise.sets.filter((set) => set.done).length, 0),
     0,
   );
-  const balanceData = routine.days.map((day) => {
-    const sets = recentLogs
-      .filter((log) => log.routineDayId === day.id)
-      .reduce((sum, log) => sum + log.exercises.reduce((exerciseSum, exercise) => exerciseSum + exercise.sets.filter((set) => set.done).length, 0), 0);
-    return {
-      label: day.focus || day.title,
-      value: balanceTotal ? Math.round((sets / balanceTotal) * 100) : 0,
-      color: day.color,
-    };
-  });
+  const completedSetsIn = (entries: WorkoutLog[]) =>
+    entries.reduce((sum, log) => sum + log.exercises.reduce((exerciseSum, exercise) => exerciseSum + exercise.sets.filter((set) => set.done).length, 0), 0);
+  const balanceData = routine.days.length > 0
+    ? routine.days.map((day) => {
+        const sets = completedSetsIn(recentLogs.filter((log) => log.routineDayId === day.id));
+        return {
+          label: day.focus || day.title,
+          value: balanceTotal ? Math.round((sets / balanceTotal) * 100) : 0,
+          color: day.color,
+        };
+      })
+    : [...new Set(recentLogs.map((log) => log.title))].map((title, index) => {
+        const sets = completedSetsIn(recentLogs.filter((log) => log.title === title));
+        return {
+          label: title,
+          value: balanceTotal ? Math.round((sets / balanceTotal) * 100) : 0,
+          color: ACCENT_COLORS[index % ACCENT_COLORS.length],
+        };
+      });
 
   if (logs.length === 0) {
     return (
@@ -1334,9 +1474,15 @@ function ProgressView({ state, onStart }: { state: AppState; onStart: (day: Rout
         </section>
         <section className="summary-card">
           <span>SESIONES</span>
-          <strong>{monthLogs.length}<small> / {routine.days.length * 4}</small></strong>
-          <div className="summary-progress"><i style={{ width: `${Math.min(100, (monthLogs.length / Math.max(routine.days.length * 4, 1)) * 100)}%` }} /></div>
-          <p>Objetivo mensual</p>
+          <strong>{monthLogs.length}{routine.days.length > 0 && <small> / {routine.days.length * 4}</small>}</strong>
+          {routine.days.length > 0 ? (
+            <>
+              <div className="summary-progress"><i style={{ width: `${Math.min(100, (monthLogs.length / Math.max(routine.days.length * 4, 1)) * 100)}%` }} /></div>
+              <p>Objetivo mensual</p>
+            </>
+          ) : (
+            <p>Sesiones este mes</p>
+          )}
         </section>
         <section className="summary-card">
           <span>SERIES COMPLETADAS</span>
@@ -1345,7 +1491,7 @@ function ProgressView({ state, onStart }: { state: AppState; onStart: (day: Rout
         </section>
         <section className="summary-card">
           <span>MEJOR RACHA</span>
-          <strong>{getBestStreak(routine, logs)} <small>sesiones</small></strong>
+          <strong>{routine.days.length > 0 ? getBestStreak(routine, logs) : getLogBestStreak(logs)} <small>sesiones</small></strong>
           <p><Flame size={15} /> Mantén la constancia</p>
         </section>
       </div>
@@ -1390,12 +1536,14 @@ function ProgressView({ state, onStart }: { state: AppState; onStart: (day: Rout
         </section>
         <section className="card muscle-balance">
           <div className="card-heading simple"><div><span>DISTRIBUCIÓN</span><h3>Balance de entrenamiento</h3></div><Target size={20} /></div>
-          {balanceData.map(({ label, value, color }) => (
+          {balanceData.length > 0 ? balanceData.map(({ label, value, color }) => (
             <div className="balance-row" key={label}>
               <div><span>{label}</span><strong>{value}%</strong></div>
               <i><b style={{ width: `${value}%`, background: color }} /></i>
             </div>
-          ))}
+          )) : (
+            <p className="archived-workout-note">Sin sesiones recientes para mostrar la distribución.</p>
+          )}
         </section>
       </div>
     </div>
@@ -1929,10 +2077,12 @@ function RoutineBuilderModal({
 
 function DeleteRoutineModal({
   routineName,
+  hasPausedSession,
   onClose,
   onConfirm,
 }: {
   routineName: string;
+  hasPausedSession: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -1953,6 +2103,7 @@ function DeleteRoutineModal({
         <span>ELIMINAR RUTINA</span>
         <h2 id="delete-routine-title">¿Borrar esta rutina?</h2>
         <p id="delete-routine-description">Se eliminará la rutina <strong>{routineName}</strong>, pero tus entrenamientos registrados seguirán guardados en el calendario.</p>
+        {hasPausedSession && <p className="delete-paused-warning">Tienes una sesión en pausa: se descartará al borrar la rutina.</p>}
         <div className="delete-routine-actions">
           <button className="button button-light" type="button" onClick={onClose}>Cancelar</button>
           <button className="button button-danger" type="button" onClick={onConfirm}><Trash2 size={16} /> Borrar rutina</button>
@@ -2102,6 +2253,10 @@ export default function App() {
     const timer = window.setTimeout(() => setToast(''), 2600);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [page]);
 
   function adoptState(user: AuthUser, nextState: AppState) {
     stateRef.current = nextState;
@@ -2357,10 +2512,12 @@ export default function App() {
         <p>Sincronizando tus datos…</p>
       </div>
     );
-  } else if (page === 'calendario' && (hasRoutine || state.logs.length > 0)) {
-    content = <CalendarView routine={state.routine} logs={state.logs} onStart={startWorkout} />;
+  } else if ((page === 'calendario' || page === 'progreso') && (hasRoutine || state.logs.length > 0)) {
+    content = page === 'calendario'
+      ? <CalendarView routine={state.routine} logs={state.logs} onStart={startWorkout} />
+      : <ProgressView state={state} onStart={startWorkout} />;
   } else if (!hasRoutine) {
-    content = <EmptyRoutineState page={page} onImport={() => setBuilderMode('import')} />;
+    content = <EmptyRoutineState page={page} hasLogs={state.logs.length > 0} onImport={() => setBuilderMode('import')} />;
   } else if (page === 'rutina') {
     content = <RoutineView routine={state.routine} logs={state.logs} unit={state.unit} onStart={startWorkout} onEdit={() => setBuilderMode('edit')} onImport={() => setBuilderMode('import')} onDelete={requestDeleteRoutine} />;
   } else if (page === 'progreso') {
@@ -2388,7 +2545,7 @@ export default function App() {
         {content}
       </main>
       {builderMode && <RoutineBuilderModal initialRoutine={builderMode === 'edit' ? state.routine : undefined} onClose={() => setBuilderMode(null)} onSave={saveRoutine} />}
-      {deleteRoutineOpen && <DeleteRoutineModal routineName={state.routine.name} onClose={() => setDeleteRoutineOpen(false)} onConfirm={deleteRoutine} />}
+      {deleteRoutineOpen && <DeleteRoutineModal routineName={state.routine.name} hasPausedSession={!!pausedDraft} onClose={() => setDeleteRoutineOpen(false)} onConfirm={deleteRoutine} />}
       {activeWorkout && <WorkoutSession active={activeWorkout} logs={state.logs} unit={state.unit} userEmail={authUser.email} onClose={() => setActiveWorkout(null)} onFinish={finishWorkout} />}
       {completedLog && <CompletionModal log={completedLog} onClose={() => { setCompletedLog(null); setPage('inicio'); }} />}
       {toast && <Toast message={toast} />}

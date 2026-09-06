@@ -3560,6 +3560,13 @@ button:disabled {
   color: #20241e;
 }
 
+.delete-routine-modal .delete-paused-warning {
+  margin-top: 12px;
+  color: #a84e44;
+  font-size: 9px;
+  font-weight: 700;
+}
+
 .delete-routine-actions {
   display: flex;
   gap: 10px;
@@ -4967,7 +4974,58 @@ button:disabled {
     min-height: 270px;
   }
 
-  .dashboard-bottom-grid {
+.history-prompt-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 20px 22px;
+}
+
+.history-prompt-card > span {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #5e7118;
+  border-radius: 13px;
+  background: rgba(215, 244, 91, 0.4);
+}
+
+.history-prompt-card small {
+  color: #84962c;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+
+.history-prompt-card h3 {
+  margin: 4px 0;
+  font-family: var(--font-display);
+  font-size: 16px;
+  letter-spacing: -0.03em;
+}
+
+.history-prompt-card p {
+  margin: 0;
+  color: #7f857c;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.history-prompt-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.dashboard-page > .progress-preview {
+  margin-top: 12px;
+}
+
+.dashboard-bottom-grid {
     grid-template-columns: 1fr 0.7fr;
   }
 
@@ -5172,6 +5230,20 @@ button:disabled {
 
   .metric-card {
     min-height: 75px;
+  }
+
+  .history-prompt-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .history-prompt-actions {
+    flex-direction: column;
+    margin-left: 0;
+  }
+
+  .history-prompt-actions .button {
+    width: 100%;
   }
 
   .routine-header-card {
