@@ -767,32 +767,53 @@ function AreaChart({
   emptyTitle?: string;
   emptyText?: string;
 }) {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState(640);
+
+  useLayoutEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const updateWidth = (width: number) => {
+      const nextWidth = Math.round(width);
+      if (nextWidth > 0) setChartWidth((current) => current === nextWidth ? current : nextWidth);
+    };
+    updateWidth(chart.getBoundingClientRect().width);
+    const observer = new ResizeObserver((entries) => updateWidth(entries[0]?.contentRect.width ?? 0));
+    observer.observe(chart);
+    return () => observer.disconnect();
+  }, [points.length === 0]);
+
   if (points.length === 0) {
     return (
-      <div className="chart-empty">
+      <div className="chart-empty" ref={chartRef}>
         <span><LineChart size={24} /></span>
         <strong>{emptyTitle}</strong>
         <p>{emptyText}</p>
       </div>
     );
   }
-  const width = 640;
-  const height = compact ? 150 : 220;
-  const padX = 20;
+  const width = chartWidth;
+  const height = compact ? Math.max(120, Math.min(150, width * 0.36)) : Math.max(150, Math.min(220, width * 0.5));
+  const padX = width < 420 ? 10 : 20;
   const padY = 24;
-  const max = Math.max(...points.map((point) => point.value), 1) * 1.12;
-  const min = Math.min(...points.map((point) => point.value), 0) * 0.92;
+  const values = points.map((point) => point.value);
+  const highest = Math.max(...values);
+  const lowest = Math.min(...values);
+  const spread = highest - lowest;
+  const scalePadding = spread === 0 ? Math.max(Math.abs(highest) * 0.08, 1) : Math.max(spread * 0.18, Math.abs(highest) * 0.02);
+  const max = highest + scalePadding;
+  const min = Math.max(0, lowest - scalePadding);
   const range = max - min || 1;
   const coordinates = points.map((point, index) => ({
-    x: padX + (index * (width - padX * 2)) / Math.max(points.length - 1, 1),
+    x: points.length === 1 ? width / 2 : padX + (index * (width - padX * 2)) / (points.length - 1),
     y: padY + ((max - point.value) / range) * (height - padY * 2),
   }));
   const line = coordinates.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
   const area = `${line} L ${coordinates.at(-1)?.x ?? padX} ${height - padY} L ${padX} ${height - padY} Z`;
 
   return (
-    <div className={`area-chart ${compact ? 'compact' : ''}`}>
-      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="Gráfica de progreso">
+    <div className={`area-chart ${compact ? 'compact' : ''}`} ref={chartRef}>
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ height }} role="img" aria-label="Gráfica de progreso">
         <defs>
           <linearGradient id={`chartFill-${compact ? 'small' : 'large'}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor="#b9dc35" stopOpacity="0.34" />
@@ -802,8 +823,8 @@ function AreaChart({
         {[0.2, 0.5, 0.8].map((position) => (
           <line key={position} x1="0" x2={width} y1={height * position} y2={height * position} className="chart-gridline" />
         ))}
-        <path d={area} fill={`url(#chartFill-${compact ? 'small' : 'large'})`} />
-        <path d={line} className="chart-line" />
+        {points.length > 1 && <path d={area} fill={`url(#chartFill-${compact ? 'small' : 'large'})`} />}
+        {points.length > 1 && <path d={line} className="chart-line" />}
         {coordinates.map((point, index) => (
           <g key={`${points[index].label}-${index}`}>
             <circle cx={point.x} cy={point.y} r={compact ? 3.5 : 4.5} className="chart-dot" />
@@ -811,8 +832,8 @@ function AreaChart({
           </g>
         ))}
       </svg>
-      <div className="chart-labels">
-        {points.map((point) => <span key={point.label}>{point.label}</span>)}
+      <div className={`chart-labels ${points.length === 1 ? 'single' : ''}`}>
+        {points.map((point, index) => <span key={`${point.label}-${index}`}>{point.label}</span>)}
       </div>
     </div>
   );
