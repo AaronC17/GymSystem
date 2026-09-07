@@ -47,6 +47,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ACCENT_COLORS,
   addDays,
@@ -117,19 +118,48 @@ function clearLegacyAuth() {
 }
 
 let bodyScrollLockCount = 0;
+let lockedBodyScroll: {
+  x: number;
+  y: number;
+  overflow: string;
+  position: string;
+  top: string;
+  left: string;
+  width: string;
+} | null = null;
 
 function useLockBodyScroll() {
   useEffect(() => {
     bodyScrollLockCount += 1;
     if (bodyScrollLockCount === 1) {
-      document.body.dataset.kyonPrevOverflow = document.body.style.overflow;
+      const { style } = document.body;
+      lockedBodyScroll = {
+        x: window.scrollX,
+        y: window.scrollY,
+        overflow: style.overflow,
+        position: style.position,
+        top: style.top,
+        left: style.left,
+        width: style.width,
+      };
       document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${lockedBodyScroll.y}px`;
+      document.body.style.left = `-${lockedBodyScroll.x}px`;
+      document.body.style.width = '100%';
     }
     return () => {
       bodyScrollLockCount = Math.max(0, bodyScrollLockCount - 1);
-      if (bodyScrollLockCount === 0) {
-        document.body.style.overflow = document.body.dataset.kyonPrevOverflow ?? '';
-        delete document.body.dataset.kyonPrevOverflow;
+      if (bodyScrollLockCount === 0 && lockedBodyScroll) {
+        const previous = lockedBodyScroll;
+        const { style } = document.body;
+        style.overflow = previous.overflow;
+        style.position = previous.position;
+        style.top = previous.top;
+        style.left = previous.left;
+        style.width = previous.width;
+        lockedBodyScroll = null;
+        window.scrollTo(previous.x, previous.y);
       }
     };
   }, []);
@@ -1167,7 +1197,7 @@ function WorkoutHistoryModal({ date, logs, onClose }: { date: string; logs: Work
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div className="modal-backdrop history-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
         <header className="history-modal-header">
@@ -1205,7 +1235,8 @@ function WorkoutHistoryModal({ date, logs, onClose }: { date: string; logs: Work
           })}
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

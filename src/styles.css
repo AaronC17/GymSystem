@@ -2966,15 +2966,17 @@ button:disabled {
 
 .modal-backdrop.history-backdrop {
   z-index: 135;
+  overflow: hidden;
 }
 
 .history-modal {
+  display: flex;
   width: min(100%, 690px);
   margin: auto;
   max-height: calc(100vh - 48px);
   max-height: calc(100dvh - 48px);
-  -webkit-overflow-scrolling: touch;
-  overflow: auto;
+  flex-direction: column;
+  overflow: hidden;
   border-radius: 22px;
   background: #fafaf7;
   box-shadow: 0 30px 90px rgba(10, 13, 9, 0.3);
@@ -3020,9 +3022,14 @@ button:disabled {
 
 .history-modal-body {
   display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 14px;
   padding: 18px 22px 24px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .history-session {
@@ -3158,13 +3165,16 @@ button:disabled {
 }
 
 @media (max-width: 960px) {
-  /* Keep the history card clear of the bottom menu bar. */
+  /* Limit the modal layer to the viewport area above the bottom menu. */
   .modal-backdrop.history-backdrop {
-    padding-bottom: 92px;
+    bottom: 85px;
+    min-height: 0;
+    padding: 16px;
   }
 
   .history-modal {
-    max-height: 80%;
+    max-height: calc(100vh - 117px);
+    max-height: calc(100dvh - 117px);
   }
 }
 
@@ -5918,7 +5928,6 @@ button:disabled {
 
   .history-modal {
     width: 100%;
-    max-height: 72%;
     border-radius: 22px;
   }
 
