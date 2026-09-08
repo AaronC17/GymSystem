@@ -4157,6 +4157,7 @@ button:disabled {
   display: flex;
   min-width: 180px;
   padding: 18px 20px;
+  justify-content: center;
   flex-direction: column;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 15px;
@@ -4208,6 +4209,7 @@ button:disabled {
 
 .admin-summary-grid article > div {
   display: flex;
+  justify-content: center;
   flex-direction: column;
 }
 
@@ -4372,6 +4374,7 @@ button:disabled {
 .admin-access-status > span {
   display: flex;
   min-width: 0;
+  justify-content: center;
   flex-direction: column;
 }
 
@@ -4438,6 +4441,7 @@ button:disabled {
 
 .admin-user-action {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
 }
 

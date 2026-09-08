@@ -596,7 +596,7 @@ function LoginScreen({
             ) : (
               <div className="trial-offer">
                 <span><CalendarClock size={19} /></span>
-                <div><strong>14 días gratis</strong><p>Acceso completo, sin tarjeta. Después puedes activarlo por {ACCESS_PRICE} vía SINPE Móvil.</p></div>
+                <div><strong>14 días gratis</strong><p>Acceso completo, sin tarjeta. Después puedes activarlo con un solo pago de {ACCESS_PRICE} vía SINPE Móvil.</p></div>
               </div>
             )}
 
@@ -671,7 +671,7 @@ function TrialExpiredScreen({
           <div className="paywall-icon"><Crown size={25} /></div>
           <span>ACTIVA KYON+</span>
           <h2>Acceso completo, para siempre.</h2>
-          <p>Realiza un único pago por SINPE Móvil y confirma la cuenta directamente por WhatsApp.</p>
+          <p>Realiza un solo pago de {ACCESS_PRICE} por SINPE Móvil. Sin mensualidades ni renovaciones. Confirma la cuenta directamente por WhatsApp.</p>
 
           <div className="sinpe-payment-card">
             <div className="sinpe-mark"><Smartphone size={19} /><b>S</b></div>
@@ -680,7 +680,7 @@ function TrialExpiredScreen({
           </div>
 
           <div className="paywall-benefits">
-            <span><BadgeCheck size={16} /> Acceso permanente a todas las funciones</span>
+            <span><BadgeCheck size={16} /> Un solo pago, acceso para siempre</span>
             <span><BadgeCheck size={16} /> Conservas tu rutina y todo tu historial</span>
             <span><BadgeCheck size={16} /> Activación personal después del SINPE</span>
           </div>
