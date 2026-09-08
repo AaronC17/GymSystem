@@ -596,7 +596,6 @@ function LoginScreen({
               <div className="trial-offer">
                 <span><CalendarClock size={19} /></span>
                 <div><strong>14 días gratis</strong><p>Acceso completo, sin tarjeta. Después puedes activarlo por {ACCESS_PRICE} vía SINPE Móvil.</p></div>
-                <b>14<small>días</small></b>
               </div>
             )}
 
