@@ -1,6 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { AuthUser } from '../../src/types.js';
-import { findAccount } from './accounts.js';
 import type { VercelRequest, VercelResponse } from './vercel.js';
 
 const COOKIE_NAME = 'kyon-session';
@@ -8,6 +7,7 @@ const SESSION_SECONDS = 60 * 60 * 12;
 const REMEMBERED_SESSION_SECONDS = 60 * 60 * 24 * 30;
 
 type SessionPayload = AuthUser & { exp: number };
+type SessionIdentity = { email: string };
 
 function getSecret() {
   const secret = process.env.SESSION_SECRET;
@@ -36,11 +36,17 @@ export function createSession(user: AuthUser, remember: boolean) {
   return { token: `${encoded}.${sign(encoded)}`, maxAge };
 }
 
-export function readSession(req: VercelRequest): AuthUser | null {
-  const token = parseCookies(req.headers.cookie)[COOKIE_NAME];
+export function readSession(req: VercelRequest): SessionIdentity | null {
+  let token: string | undefined;
+  try {
+    token = parseCookies(req.headers.cookie)[COOKIE_NAME];
+  } catch {
+    return null;
+  }
   if (!token) return null;
-  const [encoded, signature] = token.split('.');
-  if (!encoded || !signature) return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [encoded, signature] = parts;
   const expected = Buffer.from(sign(encoded));
   const received = Buffer.from(signature);
   if (expected.length !== received.length || !timingSafeEqual(expected, received)) return null;
@@ -48,8 +54,8 @@ export function readSession(req: VercelRequest): AuthUser | null {
   try {
     const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as Partial<SessionPayload>;
     if (typeof payload.email !== 'string' || typeof payload.exp !== 'number' || payload.exp <= Date.now() / 1000) return null;
-    const account = findAccount(payload.email);
-    return account ? { email: account.email, name: account.name } : null;
+    const email = payload.email.trim().toLowerCase();
+    return email ? { email } : null;
   } catch {
     return null;
   }

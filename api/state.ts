@@ -1,8 +1,9 @@
 import type { Collection } from 'mongodb';
 import { isStoredState } from '../src/stateSchema.js';
 import type { AppState, StateMutation } from '../src/types.js';
+import { resolveSessionAccess } from './_lib/access.js';
 import { getDatabase } from './_lib/mongo.js';
-import { hasValidOrigin, readSession, setPrivateResponse } from './_lib/session.js';
+import { hasValidOrigin, setPrivateResponse } from './_lib/session.js';
 import type { VercelRequest, VercelResponse } from './_lib/vercel.js';
 
 const AARON_EMAIL = 'contrerasaaron447@gmail.com';
@@ -80,11 +81,16 @@ async function mutateState(collection: Collection<UserStateDocument>, email: str
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   setPrivateResponse(res);
-  const user = readSession(req);
-  if (!user) return res.status(401).json({ message: 'Inicia sesión para continuar.' });
-  if (req.method !== 'GET' && !hasValidOrigin(req)) return res.status(403).json({ message: 'Origen no permitido.' });
 
   try {
+    const account = await resolveSessionAccess(req);
+    if (!account) return res.status(401).json({ message: 'Inicia sesión para continuar.' });
+    const { user, access } = account;
+    if (req.method !== 'GET' && !hasValidOrigin(req)) return res.status(403).json({ message: 'Origen no permitido.' });
+    if ((req.method === 'GET' || req.method === 'POST' || req.method === 'PATCH') && access.status === 'expired') {
+      return res.status(402).json({ message: 'Tu prueba de 14 días finalizó.', access });
+    }
+
     const collection = await getCollection();
 
     if (req.method === 'GET') {

@@ -5,6 +5,13 @@ export type AuthUser = {
   email: string;
 };
 
+export type AccessInfo = {
+  status: 'trial' | 'active' | 'expired';
+  trialEndsAt: string | null;
+  trialDaysRemaining: number;
+  isAdmin: boolean;
+};
+
 export type Exercise = {
   id: string;
   name: string;

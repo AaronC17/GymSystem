@@ -1,6 +1,16 @@
-import type { AppState, AuthUser, StateMutation } from './types';
+import type { AccessInfo, AppState, AuthUser, StateMutation } from './types';
 
-type SessionResponse = { user: AuthUser };
+export type SessionResponse = { user: AuthUser; access: AccessInfo };
+
+export type AdminUserSummary = {
+  email: string;
+  nombre: string;
+  createdAt: string;
+  trialEndsAt: string;
+  paidAt: string | null;
+  status: AccessInfo['status'];
+  trialDaysRemaining: number;
+};
 
 export type RemoteStateResponse = {
   state: AppState | null;
@@ -9,11 +19,13 @@ export type RemoteStateResponse = {
 
 export class ApiError extends Error {
   status: number;
+  access?: AccessInfo;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, access?: AccessInfo) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.access = access;
   }
 }
 
@@ -31,7 +43,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   const payload = await response.json().catch(() => null) as ({ message?: string } & T) | null;
-  if (!response.ok) throw new ApiError(payload?.message ?? 'No fue posible conectar con el servidor.', response.status);
+  if (!response.ok) {
+    const access = payload && 'access' in payload ? payload.access as AccessInfo : undefined;
+    throw new ApiError(payload?.message ?? 'No fue posible conectar con el servidor.', response.status, access);
+  }
   return payload as T;
 }
 
@@ -53,6 +68,13 @@ export function getRemoteSession() {
   return request<SessionResponse>('/api/session');
 }
 
+export function registerRemote(name: string, email: string, password: string) {
+  return request<SessionResponse>('/api/register', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, password }),
+  });
+}
+
 export function logoutRemote() {
   return request<{ ok: true }>('/api/session', { method: 'DELETE' });
 }
@@ -72,5 +94,16 @@ export function mutateRemoteState(mutation: StateMutation) {
   return request<RemoteStateResponse>('/api/state', {
     method: 'PATCH',
     body: JSON.stringify(mutation),
+  });
+}
+
+export function getAdminUsers() {
+  return request<{ users: AdminUserSummary[] }>('/api/admin/users');
+}
+
+export function activateAdminUser(email: string) {
+  return request<{ user: AdminUserSummary }>('/api/admin/users', {
+    method: 'PATCH',
+    body: JSON.stringify({ email }),
   });
 }

@@ -1,14 +1,17 @@
 import {
   Activity,
   ArrowRight,
+  BadgeCheck,
   BarChart3,
   Bell,
+  CalendarClock,
   CalendarDays,
   Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Crown,
   Dumbbell,
   FileText,
   Flame,
@@ -21,17 +24,22 @@ import {
   LockKeyhole,
   LogOut,
   Mail,
+  MessageCircle,
   Pencil,
   Play,
   Plus,
   RotateCcw,
   ScanText,
+  Search,
   ShieldCheck,
+  Smartphone,
   Sparkles,
   Target,
   Trash2,
   TrendingUp,
   Upload,
+  UserRound,
+  Users,
   X,
   Zap,
 } from 'lucide-react';
@@ -41,6 +49,7 @@ import {
   type FormEvent,
   type PointerEvent,
   type ReactNode,
+  useDeferredValue,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -68,16 +77,21 @@ import {
   uid,
 } from './data';
 import {
+  activateAdminUser,
   ApiError,
   bootstrapRemoteState,
   createMutation,
+  getAdminUsers,
   getRemoteSession,
   getRemoteState,
   loginRemote,
   logoutRemote,
   mutateRemoteState,
+  registerRemote,
+  type AdminUserSummary,
 } from './api';
 import type {
+  AccessInfo,
   AppState,
   AuthUser,
   Exercise,
@@ -89,7 +103,7 @@ import type {
   WorkoutLog,
 } from './types';
 
-type Page = 'inicio' | 'rutina' | 'calendario' | 'progreso';
+type Page = 'inicio' | 'rutina' | 'calendario' | 'progreso' | 'admin';
 
 type ActiveWorkout = {
   day: RoutineDay;
@@ -107,6 +121,8 @@ type StoredWorkoutDraft = {
 const LEGACY_ACTIVE_WORKOUT_KEY = 'tempo-active-workout-v1';
 const AUTH_STORAGE_KEY = 'tempo-auth-user-v1';
 const AARON_EMAIL = 'contrerasaaron447@gmail.com';
+const WHATSAPP_NUMBER = '50661555619';
+const ACCESS_PRICE = '₡5.000';
 
 function clearLegacyAuth() {
   try {
@@ -399,43 +415,77 @@ function Logo({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function LoginScreen({ onLogin }: { onLogin: (email: string, password: string, remember: boolean) => Promise<void> }) {
+function LoginScreen({
+  onLogin,
+  onRegister,
+}: {
+  onLogin: (email: string, password: string, remember: boolean) => Promise<void>;
+  onRegister: (name: string, email: string, password: string) => Promise<void>;
+}) {
+  const [mode, setMode] = useState<'login' | 'register'>(() => window.location.hash === '#registro' ? 'register' : 'login');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
+  function changeMode(nextMode: 'login' | 'register') {
+    setMode(nextMode);
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${nextMode === 'register' ? '#registro' : ''}`);
+    setPassword('');
+    setPasswordConfirmation('');
+    setShowPassword(false);
+    setError('');
+    setNotice('');
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setNotice('');
+    if (mode === 'register' && (name.trim().length < 2 || name.trim().length > 70)) {
+      setError('Escribe tu nombre completo para crear la cuenta.');
+      return;
+    }
     if (!email.trim() || !password) {
       setError('Ingresa tu correo y contraseña para continuar.');
+      return;
+    }
+    if (mode === 'register' && (password.length < 8 || !/\p{L}/u.test(password) || !/\d/u.test(password))) {
+      setError('Usa al menos 8 caracteres e incluye una letra y un número.');
+      return;
+    }
+    if (mode === 'register' && password !== passwordConfirmation) {
+      setError('Las contraseñas no coinciden.');
       return;
     }
     setError('');
     setSubmitting(true);
     try {
-      await onLogin(email.trim().toLowerCase(), password, remember);
+      if (mode === 'register') await onRegister(name.trim(), email.trim().toLowerCase(), password);
+      else await onLogin(email.trim().toLowerCase(), password, remember);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No fue posible iniciar sesión.');
+      setError(reason instanceof Error ? reason.message : mode === 'register' ? 'No fue posible crear la cuenta.' : 'No fue posible iniciar sesión.');
       setSubmitting(false);
     }
   }
 
   return (
-    <main className="login-page">
+    <main className={`login-page ${mode === 'register' ? 'register-page' : ''}`}>
       <section className="login-showcase">
         <div className="login-showcase-top">
           <Logo />
-          <span><i /> TU PROGRESO, EN MOVIMIENTO</span>
+          <span><i /> {mode === 'register' ? '14 DÍAS PARA PROBARLO TODO' : 'TU PROGRESO, EN MOVIMIENTO'}</span>
         </div>
         <div className="login-message">
-          <span>ENTRENA · REGISTRA · AVANZA</span>
-          <h1>Tu progreso no se adivina.<br /><em>Se registra.</em></h1>
-          <p>Convierte cada serie, repetición y kilo en una decisión mejor para tu próximo entrenamiento.</p>
+          <span>{mode === 'register' ? 'EMPIEZA GRATIS · SIN TARJETA' : 'ENTRENA · REGISTRA · AVANZA'}</span>
+          <h1>{mode === 'register' ? <>Dos semanas para convertir<br /><em>esfuerzo en progreso.</em></> : <>Tu progreso no se adivina.<br /><em>Se registra.</em></>}</h1>
+          <p>{mode === 'register'
+            ? 'Crea tu cuenta, importa tu rutina y registra cada sesión durante 14 días. Después decides si Kyon+ se queda contigo.'
+            : 'Convierte cada serie, repetición y kilo en una decisión mejor para tu próximo entrenamiento.'}</p>
         </div>
         <div className="login-visual" aria-hidden="true">
           <div className="visual-orbit orbit-one" />
@@ -459,7 +509,35 @@ function LoginScreen({ onLogin }: { onLogin: (email: string, password: string, r
       <section className="login-access">
         <div className="login-mobile-logo"><Logo /></div>
         <div className="login-form-shell">
+          <div className="login-form-heading">
+            <span>{mode === 'register' ? 'TU PRUEBA EMPIEZA HOY' : 'BIENVENIDO DE NUEVO'}</span>
+            <h2>{mode === 'register' ? 'Crea tu cuenta.' : 'Entra a tu espacio.'}</h2>
+            <p>{mode === 'register' ? 'Regístrate en menos de un minuto. No necesitas tarjeta.' : 'Continúa donde dejaste tu último entrenamiento.'}</p>
+          </div>
+
+          <div className="auth-mode-switch" aria-label="Acceso a Kyon+">
+            <button className={mode === 'login' ? 'active' : ''} type="button" onClick={() => changeMode('login')}>Iniciar sesión</button>
+            <button className={mode === 'register' ? 'active' : ''} type="button" onClick={() => changeMode('register')}>Crear cuenta</button>
+          </div>
+
           <form onSubmit={submit} noValidate>
+            {mode === 'register' && (
+              <label className="login-field">
+                <span>Nombre completo</span>
+                <div className={error && name.trim().length < 2 ? 'invalid' : ''}>
+                  <UserRound size={17} />
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(event) => { setName(event.target.value); setError(''); }}
+                    placeholder="Tu nombre"
+                    autoComplete="name"
+                    maxLength={70}
+                    autoFocus
+                  />
+                </div>
+              </label>
+            )}
             <label className="login-field">
               <span>Correo electrónico</span>
               <div className={error && !email ? 'invalid' : ''}>
@@ -470,7 +548,8 @@ function LoginScreen({ onLogin }: { onLogin: (email: string, password: string, r
                   onChange={(event) => { setEmail(event.target.value); setError(''); }}
                   placeholder="nombre@correo.com"
                   autoComplete="email"
-                  autoFocus
+                  maxLength={254}
+                  autoFocus={mode === 'login'}
                 />
               </div>
             </label>
@@ -483,7 +562,8 @@ function LoginScreen({ onLogin }: { onLogin: (email: string, password: string, r
                   value={password}
                   onChange={(event) => { setPassword(event.target.value); setError(''); }}
                   placeholder="Ingresa tu contraseña"
-                  autoComplete="current-password"
+                  autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                  maxLength={128}
                 />
                 <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
                   {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
@@ -491,22 +571,126 @@ function LoginScreen({ onLogin }: { onLogin: (email: string, password: string, r
               </div>
             </label>
 
-            <div className="login-options">
-              <label><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /><i><Check size={11} /></i><span>Recordarme</span></label>
-              <button type="button" onClick={() => setNotice('La recuperación se conectará al correo de tu cuenta.')}>¿Olvidaste tu contraseña?</button>
-            </div>
+            {mode === 'register' && (
+              <label className="login-field">
+                <span>Confirmar contraseña</span>
+                <div className={error && password !== passwordConfirmation ? 'invalid' : ''}>
+                  <ShieldCheck size={17} />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={passwordConfirmation}
+                    onChange={(event) => { setPasswordConfirmation(event.target.value); setError(''); }}
+                    placeholder="Repite tu contraseña"
+                    autoComplete="new-password"
+                    maxLength={128}
+                  />
+                </div>
+              </label>
+            )}
+
+            {mode === 'login' ? (
+              <div className="login-options">
+                <label><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /><i><Check size={11} /></i><span>Recordarme</span></label>
+                <button type="button" onClick={() => setNotice('La recuperación se conectará al correo de tu cuenta.')}>¿Olvidaste tu contraseña?</button>
+              </div>
+            ) : (
+              <div className="trial-offer">
+                <span><CalendarClock size={19} /></span>
+                <div><strong>14 días gratis</strong><p>Acceso completo, sin tarjeta. Después puedes activarlo por {ACCESS_PRICE} vía SINPE Móvil.</p></div>
+                <b>14<small>días</small></b>
+              </div>
+            )}
 
             {error && <p className="login-feedback error"><X size={14} /> {error}</p>}
             {notice && <p className="login-feedback"><Check size={14} /> {notice}</p>}
 
             <button className="login-submit" type="submit" disabled={submitting}>
-              {submitting ? <><i className="login-spinner" /> Verificando...</> : <><span>Iniciar sesión</span><ArrowRight className="login-submit-arrow" size={17} /></>}
+              {submitting
+                ? <><i className="login-spinner" /> {mode === 'register' ? 'Creando tu cuenta...' : 'Verificando...'}</>
+                : <><span>{mode === 'register' ? 'Empezar mis 14 días gratis' : 'Iniciar sesión'}</span><ArrowRight className="login-submit-arrow" size={17} /></>}
             </button>
+            {mode === 'register' && <p className="trial-terms"><ShieldCheck size={13} /> La prueba inicia al crear la cuenta y no se renueva automáticamente.</p>}
           </form>
 
-          <p className="login-support">¿Necesitas ayuda? <button type="button" onClick={() => setNotice('Escríbenos a soporte@tempo.fit.')}>Contactar soporte</button></p>
+          <p className="login-support">{mode === 'register' ? '¿Ya tienes una cuenta?' : '¿Aún no tienes cuenta?'} <button type="button" onClick={() => changeMode(mode === 'register' ? 'login' : 'register')}>{mode === 'register' ? 'Iniciar sesión' : 'Probar 14 días gratis'}</button></p>
         </div>
         <div className="login-security"><ShieldCheck size={14} /> Tus datos se sincronizan de forma privada entre tus dispositivos.</div>
+      </section>
+    </main>
+  );
+}
+
+function TrialExpiredScreen({
+  user,
+  onRefresh,
+  onLogout,
+}: {
+  user: AuthUser;
+  onRefresh: () => Promise<boolean>;
+  onLogout: () => void;
+}) {
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState('');
+  const message = encodeURIComponent(`Hola, quiero activar mi acceso permanente a Kyon+ por ${ACCESS_PRICE} mediante SINPE Móvil. Mi cuenta es ${user.email}. ¿Me compartes los datos para realizar el pago?`);
+  const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${message}`;
+
+  async function refresh() {
+    setChecking(true);
+    setError('');
+    try {
+      const active = await onRefresh();
+      if (!active) setError('Aún no aparece la activación. Escríbenos por WhatsApp después de realizar el SINPE.');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'No fue posible comprobar tu acceso.');
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <main className="paywall-page">
+      <section className="paywall-story">
+        <div className="paywall-story-top"><Logo /><span><i /> PRUEBA COMPLETADA</span></div>
+        <div className="paywall-message">
+          <span>14 DÍAS · OBJETIVO CUMPLIDO</span>
+          <h1>Tu progreso ya tiene historia.<br /><em>Haz que continúe.</em></h1>
+          <p>Tu rutina, tus sesiones y cada carga permanecen guardadas. Activa Kyon+ una sola vez y sigue entrenando sin perder nada.</p>
+        </div>
+        <div className="paywall-timeline" aria-hidden="true">
+          <div className="complete"><Check size={15} /><span><strong>Cuenta creada</strong><small>Día 1</small></span></div>
+          <i />
+          <div className="complete"><Check size={15} /><span><strong>Prueba aprovechada</strong><small>14 días</small></span></div>
+          <i />
+          <div><Crown size={15} /><span><strong>Acceso completo</strong><small>Pago único</small></span></div>
+        </div>
+        <footer>Tu información sigue privada y segura en Kyon+</footer>
+      </section>
+
+      <section className="paywall-access">
+        <div className="paywall-mobile-logo"><Logo /></div>
+        <div className="paywall-card">
+          <div className="paywall-icon"><Crown size={25} /></div>
+          <span>ACTIVA KYON+</span>
+          <h2>Acceso completo, para siempre.</h2>
+          <p>Realiza un único pago por SINPE Móvil y confirma la cuenta directamente por WhatsApp.</p>
+
+          <div className="sinpe-payment-card">
+            <div className="sinpe-mark"><Smartphone size={19} /><b>S</b></div>
+            <div><strong>SINPE MÓVIL</strong><small>Rápido y directo</small></div>
+            <b>{ACCESS_PRICE}<small>pago único</small></b>
+          </div>
+
+          <div className="paywall-benefits">
+            <span><BadgeCheck size={16} /> Acceso permanente a todas las funciones</span>
+            <span><BadgeCheck size={16} /> Conservas tu rutina y todo tu historial</span>
+            <span><BadgeCheck size={16} /> Activación personal después del SINPE</span>
+          </div>
+
+          <a className="paywall-whatsapp" href={whatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={18} /> Pagar y activar por WhatsApp <ArrowRight size={17} /></a>
+          <button className="paywall-refresh" type="button" disabled={checking} onClick={() => void refresh()}>{checking ? <><i className="login-spinner" /> Comprobando...</> : <><RotateCcw size={15} /> Ya pagué, comprobar acceso</>}</button>
+          {error && <p className="paywall-feedback">{error}</p>}
+          <button className="paywall-logout" type="button" onClick={onLogout}>Cerrar sesión de {user.email}</button>
+        </div>
       </section>
     </main>
   );
@@ -518,25 +702,29 @@ const navItems: Array<{ id: Page; label: string; icon: typeof Home }> = [
   { id: 'calendario', label: 'Calendario', icon: CalendarDays },
   { id: 'progreso', label: 'Progreso', icon: BarChart3 },
 ];
+const adminNavItem: { id: Page; label: string; icon: typeof Home } = { id: 'admin', label: 'Cuentas', icon: Users };
 
 function Sidebar({
   page,
   user,
+  isAdmin,
   onNavigate,
   onLogout,
 }: {
   page: Page;
   user: AuthUser;
+  isAdmin: boolean;
   onNavigate: (page: Page) => void;
   onLogout: () => void;
 }) {
   const initials = user.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+  const items = isAdmin ? [...navItems, adminNavItem] : navItems;
   return (
     <aside className="sidebar">
       <Logo />
-      <nav className="main-nav" aria-label="Navegación principal">
+      <nav className={`main-nav ${isAdmin ? 'admin-nav' : ''}`} aria-label="Navegación principal">
         <span className="nav-kicker">MENÚ</span>
-        {navItems.map((item) => {
+        {items.map((item) => {
           const Icon = item.icon;
           return (
             <button
@@ -603,34 +791,37 @@ function Topbar({
     rutina: { eyebrow: 'PLAN DE ENTRENAMIENTO', title: 'Mi rutina' },
     calendario: { eyebrow: 'HISTORIAL DE ACTIVIDAD', title: 'Calendario' },
     progreso: { eyebrow: 'DATOS Y EVOLUCIÓN', title: 'Tu progreso' },
+    admin: { eyebrow: 'GESTIÓN PRIVADA', title: 'Cuentas y accesos' },
   };
 
   return (
-    <header className="topbar">
+    <header className={`topbar ${page === 'admin' ? 'admin-topbar' : ''}`}>
       <div className="mobile-brand"><Logo compact /></div>
       <div className="page-title">
         <span>{titles[page].eyebrow}</span>
         <h1>{titles[page].title}</h1>
       </div>
       <div className="topbar-actions">
-        {hasRoutine && (
+        {page !== 'admin' && hasRoutine && (
           <button className="unit-toggle" type="button" onClick={onToggleUnit}>
             <span className={unit === 'kg' ? 'selected' : ''}>KG</span>
             <span className={unit === 'lb' ? 'selected' : ''}>LB</span>
           </button>
         )}
-        <button className="icon-button" type="button" aria-label="Notificaciones" onClick={onNotify}>
-          <Bell size={19} />
-          <i className="notification-dot" />
-        </button>
+        {page === 'admin' ? <span className="admin-mode-pill"><ShieldCheck size={15} /> Panel privado</span> : (
+          <button className="icon-button" type="button" aria-label="Notificaciones" onClick={onNotify}>
+            <Bell size={19} />
+            <i className="notification-dot" />
+          </button>
+        )}
         <button className="icon-button mobile-logout" type="button" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={onLogout}>
           <LogOut size={18} />
         </button>
-        <button className="button button-accent quick-start-top" type="button" onClick={onStartWorkout}>
+        {page !== 'admin' && <button className="button button-accent quick-start-top" type="button" onClick={onStartWorkout}>
           {hasRoutine ? <Play size={16} fill="currentColor" /> : <Upload size={16} />}
           {workoutActionLabel}
-        </button>
-        {hasRoutine && (
+        </button>}
+        {page !== 'admin' && hasRoutine && (
           <button className="button button-dark import-top" type="button" onClick={onImport}>
             <Upload size={17} />
             Importar rutina
@@ -666,6 +857,11 @@ function EmptyRoutineState({ page, hasLogs = false, onImport }: { page: Page; ha
       eyebrow: 'AÚN NO HAY REGISTROS',
       title: 'El progreso comienza con tu plan.',
       description: 'No mostraremos estadísticas hasta importar una rutina y completar tus propios entrenamientos.',
+    },
+    admin: {
+      eyebrow: 'GESTIÓN PRIVADA',
+      title: 'Administra las cuentas registradas.',
+      description: 'Revisa pruebas y activa los accesos confirmados por SINPE Móvil.',
     },
   };
   const copy = context[page];
@@ -1602,6 +1798,115 @@ function ProgressView({ state, onStart }: { state: AppState; onStart: (day: Rout
   );
 }
 
+function AdminUsersView() {
+  const [users, setUsers] = useState<AdminUserSummary[]>([]);
+  const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search.trim().toLowerCase());
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [activatingEmail, setActivatingEmail] = useState('');
+  const [confirmingEmail, setConfirmingEmail] = useState('');
+  const [error, setError] = useState('');
+  const dateFormat = new Intl.DateTimeFormat('es-CR', { day: 'numeric', month: 'short', year: 'numeric' });
+  const visibleUsers = users.filter((user) => !deferredSearch || `${user.nombre} ${user.email}`.toLowerCase().includes(deferredSearch));
+  const activeUsers = users.filter((user) => user.status === 'active').length;
+  const trialUsers = users.filter((user) => user.status === 'trial').length;
+  const expiredUsers = users.filter((user) => user.status === 'expired').length;
+
+  useEffect(() => {
+    let active = true;
+    void getAdminUsers()
+      .then(({ users: nextUsers }) => {
+        if (active) setUsers(nextUsers);
+      })
+      .catch((reason) => {
+        if (active) setError(reason instanceof Error ? reason.message : 'No fue posible cargar las cuentas.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  async function refreshUsers() {
+    setRefreshing(true);
+    setError('');
+    try {
+      const response = await getAdminUsers();
+      setUsers(response.users);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'No fue posible actualizar las cuentas.');
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function activate(email: string) {
+    setActivatingEmail(email);
+    setError('');
+    try {
+      const { user } = await activateAdminUser(email);
+      setUsers((current) => current.map((entry) => entry.email === email ? user : entry));
+      setConfirmingEmail('');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'No fue posible activar la cuenta.');
+    } finally {
+      setActivatingEmail('');
+    }
+  }
+
+  return (
+    <div className="page-content admin-page">
+      <section className="admin-hero">
+        <div><span>CONTROL DE ACCESO</span><h2>Pruebas y activaciones.</h2><p>Confirma el SINPE recibido antes de conceder acceso permanente a una cuenta.</p></div>
+        <div className="admin-price"><span>PAGO DEFINIDO</span><strong>{ACCESS_PRICE}</strong><small>SINPE · una sola vez</small></div>
+      </section>
+
+      <div className="admin-summary-grid">
+        <article><span><Users size={17} /></span><div><small>REGISTRADAS</small><strong>{users.length}</strong></div></article>
+        <article><span><CalendarClock size={17} /></span><div><small>EN PRUEBA</small><strong>{trialUsers}</strong></div></article>
+        <article><span><Crown size={17} /></span><div><small>ACTIVAS</small><strong>{activeUsers}</strong></div></article>
+        <article><span><Clock3 size={17} /></span><div><small>VENCIDAS</small><strong>{expiredUsers}</strong></div></article>
+      </div>
+
+      <section className="card admin-users-card">
+        <header className="admin-users-header">
+          <div><span>CUENTAS REGISTRADAS</span><h3>Accesos de clientes</h3></div>
+          <div className="admin-users-tools">
+            <label><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar nombre o correo" /></label>
+            <button type="button" disabled={refreshing} onClick={() => void refreshUsers()} aria-label="Actualizar cuentas"><RotateCcw className={refreshing ? 'spinning' : ''} size={16} /></button>
+          </div>
+        </header>
+
+        {error && <p className="admin-feedback"><X size={14} /> {error}</p>}
+        {loading ? (
+          <div className="admin-loading"><i className="login-spinner" /><span>Cargando cuentas...</span></div>
+        ) : visibleUsers.length === 0 ? (
+          <div className="admin-empty"><Users size={24} /><strong>{search ? 'No encontramos coincidencias.' : 'Aún no hay cuentas registradas.'}</strong><p>{search ? 'Prueba con otro nombre o correo.' : 'Las nuevas pruebas gratuitas aparecerán aquí.'}</p></div>
+        ) : (
+          <div className="admin-user-list">
+            {visibleUsers.map((account) => (
+              <article className="admin-user-row" key={account.email}>
+                <div className="admin-user-avatar">{account.nombre.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div>
+                <div className="admin-user-identity"><strong>{account.nombre}</strong><span>{account.email}</span><small>Creada el {dateFormat.format(new Date(account.createdAt))}</small></div>
+                <div className={`admin-access-status ${account.status}`}>
+                  <i />
+                  <span><strong>{account.status === 'active' ? 'Acceso permanente' : account.status === 'trial' ? 'Prueba activa' : 'Prueba vencida'}</strong><small>{account.status === 'active' && account.paidAt ? `Activada el ${dateFormat.format(new Date(account.paidAt))}` : account.status === 'trial' ? `${account.trialDaysRemaining} días restantes` : `Venció el ${dateFormat.format(new Date(account.trialEndsAt))}`}</small></span>
+                </div>
+                <div className="admin-user-action">
+                  {account.status === 'active' ? <span><BadgeCheck size={15} /> Activa</span> : confirmingEmail === account.email ? (
+                    <div className="admin-confirm-actions"><button type="button" onClick={() => setConfirmingEmail('')}>Cancelar</button><button type="button" disabled={activatingEmail === account.email} onClick={() => void activate(account.email)}>{activatingEmail === account.email ? 'Activando...' : 'Confirmar SINPE'}</button></div>
+                  ) : <button type="button" onClick={() => setConfirmingEmail(account.email)}>Activar acceso</button>}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function WorkoutSession({
   active,
   logs,
@@ -2267,6 +2572,7 @@ export default function App() {
   const [state, setState] = useState<AppState>(initialState);
   const stateRef = useRef(state);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [access, setAccess] = useState<AccessInfo | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [dataStatus, setDataStatus] = useState<'idle' | 'loading' | 'migration' | 'ready' | 'error'>('idle');
   const [migrationCandidate, setMigrationCandidate] = useState<AppState | null>(null);
@@ -2285,13 +2591,35 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [deleteRoutineOpen, setDeleteRoutineOpen] = useState(false);
 
+  function lockExpiredAccess(nextAccess?: AccessInfo) {
+    syncEpochRef.current += 1;
+    setAccess(nextAccess ?? {
+      status: 'expired',
+      trialEndsAt: access?.trialEndsAt ?? null,
+      trialDaysRemaining: 0,
+      isAdmin: access?.isAdmin ?? false,
+    });
+    setBuilderMode(null);
+    setDeleteRoutineOpen(false);
+    setCompletedLog(null);
+    setActiveWorkout(null);
+    setDataStatus('idle');
+  }
+
+  function handleAccessError(reason: unknown) {
+    if (!(reason instanceof ApiError) || reason.status !== 402) return false;
+    lockExpiredAccess(reason.access);
+    return true;
+  }
+
   useEffect(() => {
     let active = true;
     void getRemoteSession()
-      .then(async ({ user }) => {
+      .then(async ({ user, access: nextAccess }) => {
         if (!active) return;
         setAuthUser(user);
-        await hydrateUser(user);
+        setAccess(nextAccess);
+        if (nextAccess.status !== 'expired') await hydrateUser(user);
       })
       .catch((reason) => {
         if (active && !(reason instanceof ApiError && reason.status === 401)) setSyncError('No fue posible comprobar la sesión.');
@@ -2305,6 +2633,19 @@ export default function App() {
     const timer = window.setTimeout(() => setToast(''), 2600);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (access?.status !== 'trial' || !access.trialEndsAt) return;
+    const remaining = new Date(access.trialEndsAt).getTime() - Date.now();
+    if (remaining <= 0) {
+      lockExpiredAccess({ ...access, status: 'expired', trialDaysRemaining: 0 });
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      lockExpiredAccess({ ...access, status: 'expired', trialDaysRemaining: 0 });
+    }, remaining + 250);
+    return () => window.clearTimeout(timer);
+  }, [access]);
 
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
@@ -2352,6 +2693,7 @@ export default function App() {
       remoteState = (await getRemoteState()).state;
     } catch (reason) {
       if (epoch !== syncEpochRef.current) return;
+      if (handleAccessError(reason)) return;
       if (cached) {
         setToast('No se pudo sincronizar. Revisa tu conexión.');
         return;
@@ -2377,6 +2719,7 @@ export default function App() {
         settleRemote(bootstrapped.state);
       } catch (reason) {
         if (epoch !== syncEpochRef.current) return;
+        if (handleAccessError(reason)) return;
         if (reason instanceof ApiError && reason.status === 409) {
           const refetched = await getRemoteState().catch(() => null);
           if (epoch !== syncEpochRef.current) return;
@@ -2411,6 +2754,7 @@ export default function App() {
       setDataStatus('ready');
       setToast('Datos sincronizados correctamente');
     } catch (reason) {
+      if (handleAccessError(reason)) return;
       if (reason instanceof ApiError && reason.status === 409) {
         const remote = await getRemoteState().catch(() => null);
         if (remote?.state) {
@@ -2454,6 +2798,7 @@ export default function App() {
       })
       .catch((reason) => {
         syncFailedRef.current = true;
+        if (handleAccessError(reason)) return;
         setToast(reason instanceof Error ? reason.message : 'El cambio quedó guardado solo en este dispositivo.');
       })
       .finally(() => {
@@ -2465,7 +2810,7 @@ export default function App() {
   }
 
   function commitState(nextState: AppState, mutation: Parameters<typeof mutateRemoteState>[0]) {
-    if (!authUser) return;
+    if (!authUser || access?.status === 'expired') return;
     mutationsIssuedRef.current += 1;
     adoptState(authUser, nextState);
     queueRemoteMutation(mutation);
@@ -2510,11 +2855,31 @@ export default function App() {
   }
 
   async function login(email: string, password: string, remember: boolean) {
-    const { user } = await loginRemote(email, password, remember);
+    const { user, access: nextAccess } = await loginRemote(email, password, remember);
     clearLegacyAuth();
     setAuthUser(user);
+    setAccess(nextAccess);
+    setAuthChecked(true);
+    if (nextAccess.status !== 'expired') await hydrateUser(user);
+  }
+
+  async function register(name: string, email: string, password: string) {
+    const { user, access: nextAccess } = await registerRemote(name, email, password);
+    clearLegacyAuth();
+    setAuthUser(user);
+    setAccess(nextAccess);
     setAuthChecked(true);
     await hydrateUser(user);
+  }
+
+  async function refreshAccess() {
+    const { user, access: nextAccess } = await getRemoteSession();
+    setAuthUser(user);
+    setAccess(nextAccess);
+    if (nextAccess.status === 'expired') return false;
+    setDataStatus('loading');
+    await hydrateUser(user);
+    return true;
   }
 
   function logout() {
@@ -2527,6 +2892,7 @@ export default function App() {
     setActiveWorkout(null);
     setPage('inicio');
     setAuthUser(null);
+    setAccess(null);
     const emptyState = createInitialState();
     stateRef.current = emptyState;
     setState(emptyState);
@@ -2541,7 +2907,9 @@ export default function App() {
   }
 
   if (!authChecked) return null;
-  if (!authUser) return <LoginScreen onLogin={login} />;
+  if (!authUser) return <LoginScreen onLogin={login} onRegister={register} />;
+  if (!access) return null;
+  if (access.status === 'expired') return <TrialExpiredScreen user={authUser} onRefresh={refreshAccess} onLogout={logout} />;
   if (dataStatus === 'migration' && migrationCandidate) {
     return <MigrationScreen user={authUser} candidate={migrationCandidate} busy={migrationBusy} error={syncError} onMigrate={() => void migrateLocalState()} onLogout={logout} />;
   }
@@ -2557,7 +2925,9 @@ export default function App() {
     : getNextWorkout(state.routine, state.logs);
 
   let content: ReactNode;
-  if (dataStatus === 'loading') {
+  if (page === 'admin' && access.isAdmin) {
+    content = <AdminUsersView />;
+  } else if (dataStatus === 'loading') {
     content = (
       <div className="page-content syncing-content" aria-live="polite">
         <i className="login-spinner" aria-hidden="true" />
@@ -2580,7 +2950,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar page={page} user={authUser} onNavigate={setPage} onLogout={logout} />
+      <Sidebar page={page} user={authUser} isAdmin={access.isAdmin} onNavigate={setPage} onLogout={logout} />
       <main className="app-main">
         <Topbar
           page={page}
