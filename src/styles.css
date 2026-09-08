@@ -85,6 +85,7 @@ button:disabled {
   min-height: 100svh;
   grid-template-columns: minmax(540px, 1.18fr) minmax(430px, 0.82fr);
   overflow: hidden;
+  overflow-y: auto;
   background: #f2f1ed;
 }
 
@@ -400,16 +401,16 @@ button:disabled {
 }
 
 .login-form-heading h2 {
-  margin: 9px 0 8px;
+  margin: 7px 0 5px;
   font-family: var(--font-display);
-  font-size: clamp(29px, 3vw, 39px);
+  font-size: clamp(27px, 2.6vw, 34px);
   font-weight: 700;
   letter-spacing: -0.065em;
 }
 
 .login-form-heading p {
   max-width: 370px;
-  margin: 9px 0 0;
+  margin: 5px 0 0;
   color: #888e85;
   font-size: 10px;
   line-height: 1.55;
@@ -421,12 +422,12 @@ button:disabled {
 
 .login-field {
   display: block;
-  margin-top: 16px;
+  margin-top: 11px;
 }
 
 .login-field > span {
   display: block;
-  margin: 0 0 7px 2px;
+  margin: 0 0 5px 2px;
   color: #555b52;
   font-size: 9px;
   font-weight: 700;
@@ -434,10 +435,10 @@ button:disabled {
 
 .login-field > div {
   display: flex;
-  height: 49px;
+  height: 43px;
   align-items: center;
   gap: 10px;
-  padding: 0 13px;
+  padding: 0 11px;
   transition: 150ms ease;
   color: #949a91;
   border: 1px solid #d8dad2;
@@ -490,7 +491,7 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 15px;
-  margin-top: 15px;
+  margin-top: 12px;
 }
 
 .login-options > label {
@@ -557,10 +558,10 @@ button:disabled {
   position: relative;
   display: flex;
   width: 100%;
-  height: 49px;
+  height: 44px;
   align-items: center;
   justify-content: center;
-  margin-top: 21px;
+  margin-top: 14px;
   padding: 0 45px;
   cursor: pointer;
   transition: 160ms ease;
@@ -602,7 +603,7 @@ button:disabled {
 }
 
 .login-support {
-  margin: 20px 0 0;
+  margin: 14px 0 0;
   color: #969b93;
   font-size: 8px;
   text-align: center;
@@ -709,15 +710,15 @@ button:disabled {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 3px;
-  margin-top: 21px;
-  padding: 4px;
+  margin-top: 15px;
+  padding: 3px;
   border: 1px solid #dedfd8;
   border-radius: 12px;
   background: #eaeae4;
 }
 
 .auth-mode-switch button {
-  height: 36px;
+  height: 32px;
   padding: 0 10px;
   cursor: pointer;
   transition: 160ms ease;
@@ -737,11 +738,11 @@ button:disabled {
 
 .trial-offer {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 11px;
-  margin-top: 17px;
-  padding: 12px;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 9px 10px;
   border: 1px solid rgba(163, 190, 48, 0.32);
   border-radius: 13px;
   background:
@@ -751,8 +752,8 @@ button:disabled {
 
 .trial-offer > span {
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   color: #263015;
   border-radius: 10px;
@@ -782,7 +783,7 @@ button:disabled {
   flex-direction: column;
   color: #607415;
   font-family: var(--font-display);
-  font-size: 21px;
+  font-size: 19px;
   letter-spacing: -0.06em;
 }
 
@@ -799,7 +800,7 @@ button:disabled {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  margin: 10px 0 0;
+  margin: 7px 0 0;
   color: #8d9389;
   font-size: 7px;
   text-align: center;
@@ -5828,7 +5829,7 @@ button:disabled {
 
   .login-page {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     min-height: 100dvh;
     min-height: 100svh;
@@ -5850,7 +5851,7 @@ button:disabled {
 
   .login-access {
     width: 100%;
-    max-width: 360px;
+    max-width: 410px;
     min-height: 0;
     height: auto;
     display: flex;
@@ -5868,7 +5869,7 @@ button:disabled {
 
   .login-mobile-logo {
     display: block;
-    margin-bottom: 25px;
+    margin-bottom: 12px;
     color: #fff;
   }
 
@@ -5879,7 +5880,7 @@ button:disabled {
   .login-form-shell {
     width: min(100%, 390px);
     min-height: 560px;
-    padding: 29px 28px 24px;
+    padding: 20px 28px 16px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 20px;
     background: #f9f9f6;
@@ -5898,7 +5899,7 @@ button:disabled {
   .login-security {
     position: static;
     max-width: 390px;
-    margin-top: 20px;
+    margin-top: 12px;
     color: #778078;
   }
 
@@ -6994,17 +6995,23 @@ button:disabled {
   .login-form-shell {
     width: min(100%, 330px);
     min-height: 538px;
-    padding: 24px 18px 20px;
-    border-radius: 18px;
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .login-form-heading > span {
+    font-size: 7px;
   }
 
   .login-form-heading h2 {
-    margin-top: 7px;
-    font-size: 27px;
+    margin-top: 5px;
+    margin-bottom: 3px;
+    font-size: 23px;
   }
 
   .login-form-heading p {
-    font-size: 9px;
+    margin-top: 3px;
+    font-size: 8px;
   }
 
   .login-form-shell form {
@@ -7012,11 +7019,42 @@ button:disabled {
   }
 
   .login-field {
-    margin-top: 13px;
+    margin-top: 8px;
+  }
+
+  .login-field > span {
+    margin-bottom: 3px;
+    font-size: 8px;
   }
 
   .login-field > div {
-    height: 46px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .login-options {
+    margin-top: 8px;
+  }
+
+  .auth-mode-switch {
+    margin-top: 10px;
+    padding: 2px;
+  }
+
+  .auth-mode-switch button {
+    height: 29px;
+    font-size: 9px;
+  }
+
+  .login-submit {
+    height: 40px;
+    margin-top: 10px;
+    font-size: 9px;
+  }
+
+  .login-support {
+    margin-top: 9px;
+    font-size: 8px;
   }
 
   .login-security {
@@ -7344,6 +7382,8 @@ button:disabled {
 
   .login-form-shell {
     min-height: 494px;
+    padding-top: 11px;
+    padding-bottom: 10px;
   }
 
   .register-page .login-form-heading p,
