@@ -388,9 +388,12 @@ button:disabled {
   z-index: 1;
   display: flex;
   width: min(100%, 390px);
-  min-height: 580px;
   justify-content: center;
   flex-direction: column;
+}
+
+.register-page .login-form-shell {
+  min-height: 580px;
 }
 
 .login-form-heading > span {
@@ -621,10 +624,6 @@ button:disabled {
   color: #9a9f97;
   font-size: 7px;
   text-align: center;
-}
-
-.register-page .login-form-shell {
-  width: min(100%, 390px);
 }
 
 .login-page.register-page {
@@ -5879,7 +5878,6 @@ button:disabled {
 
   .login-form-shell {
     width: min(100%, 390px);
-    min-height: 560px;
     padding: 20px 28px 16px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 20px;
@@ -5913,6 +5911,7 @@ button:disabled {
   }
 
   .register-page .login-form-shell {
+    min-height: 560px;
     padding-top: 20px;
     padding-bottom: 16px;
   }
@@ -6994,9 +6993,12 @@ button:disabled {
 
   .login-form-shell {
     width: min(100%, 330px);
-    min-height: 538px;
     padding: 14px;
     border-radius: 16px;
+  }
+
+  .register-page .login-form-shell {
+    min-height: 538px;
   }
 
   .login-form-heading > span {
@@ -7376,12 +7378,12 @@ button:disabled {
   }
 
   .register-page .login-form-shell {
+    min-height: 494px;
     padding-top: 11px;
     padding-bottom: 10px;
   }
 
   .login-form-shell {
-    min-height: 494px;
     padding-top: 11px;
     padding-bottom: 10px;
   }
