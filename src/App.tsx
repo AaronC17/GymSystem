@@ -434,6 +434,7 @@ function LoginScreen({
   const [notice, setNotice] = useState('');
 
   function changeMode(nextMode: 'login' | 'register') {
+    if (nextMode === mode) return;
     setMode(nextMode);
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${nextMode === 'register' ? '#registro' : ''}`);
     setPassword('');
@@ -509,18 +510,18 @@ function LoginScreen({
       <section className="login-access">
         <div className="login-mobile-logo"><Logo /></div>
         <div className="login-form-shell">
-          <div className="login-form-heading">
+          <div className="login-form-heading auth-animated" key={`heading-${mode}`}>
             <span>{mode === 'register' ? 'TU PRUEBA EMPIEZA HOY' : 'BIENVENIDO DE NUEVO'}</span>
             <h2>{mode === 'register' ? 'Crea tu cuenta.' : 'Entra a tu espacio.'}</h2>
             <p>{mode === 'register' ? 'Regístrate en menos de un minuto. No necesitas tarjeta.' : 'Continúa donde dejaste tu último entrenamiento.'}</p>
           </div>
 
-          <div className="auth-mode-switch" aria-label="Acceso a Kyon+">
+          <div className="auth-mode-switch" data-mode={mode} aria-label="Acceso a Kyon+">
             <button className={mode === 'login' ? 'active' : ''} type="button" onClick={() => changeMode('login')}>Iniciar sesión</button>
             <button className={mode === 'register' ? 'active' : ''} type="button" onClick={() => changeMode('register')}>Crear cuenta</button>
           </div>
 
-          <form onSubmit={submit} noValidate>
+          <form key={`form-${mode}`} className="auth-form" onSubmit={submit} noValidate>
             {mode === 'register' && (
               <label className="login-field">
                 <span>Nombre completo</span>
