@@ -533,7 +533,6 @@ function LoginScreen({
                     placeholder="Tu nombre"
                     autoComplete="name"
                     maxLength={70}
-                    autoFocus
                   />
                 </div>
               </label>
