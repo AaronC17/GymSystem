@@ -1913,6 +1913,7 @@ function WorkoutSession({
   userEmail,
   onClose,
   onFinish,
+  onToggleUnit,
 }: {
   active: ActiveWorkout;
   logs: WorkoutLog[];
@@ -1920,6 +1921,7 @@ function WorkoutSession({
   userEmail: string;
   onClose: () => void;
   onFinish: (log: WorkoutLog) => void;
+  onToggleUnit: () => void;
 }) {
   useLockBodyScroll();
   const existingWorkout = logs.find((log) => log.date === active.date && log.routineDayId === active.day.id);
@@ -2041,7 +2043,15 @@ function WorkoutSession({
     setExerciseLogs((current) => current.map((entry, index) => {
       if (index !== activeExercise) return entry;
       const last = entry.sets.at(-1);
-      return { ...entry, sets: [...entry.sets, { weight: last?.weight ?? 0, reps: last?.reps ?? parseTargetReps(exercise.reps), done: false, unit }] };
+      return {
+        ...entry,
+        sets: [...entry.sets, {
+          weight: last ? displayWeight(last.weight, last.unit, unit) : 0,
+          reps: last?.reps ?? parseTargetReps(exercise.reps),
+          done: false,
+          unit,
+        }],
+      };
     }));
   }
 
@@ -2074,6 +2084,10 @@ function WorkoutSession({
           <div className="workout-brand"><Logo compact /><span>ENTRENAMIENTO ACTIVO</span></div>
           <div className="workout-timer"><Clock3 size={17} /><strong>{minutes}:{timerSeconds}</strong></div>
           <div className="workout-header-actions">
+            <button className="unit-toggle workout-unit-toggle" type="button" onClick={onToggleUnit} aria-label={`Cambiar peso a ${unit === 'kg' ? 'libras' : 'kilogramos'}`} title={`Usar ${unit === 'kg' ? 'libras' : 'kilogramos'}`}>
+              <span className={unit === 'kg' ? 'selected' : ''}>KG</span>
+              <span className={unit === 'lb' ? 'selected' : ''}>LB</span>
+            </button>
             <button className="workout-header-finish" type="button" onClick={requestFinish} title={pendingSets > 0 ? `Finalizar con ${pendingSets} ${pendingSets === 1 ? 'serie pendiente' : 'series pendientes'}` : 'Finalizar entrenamiento'}><Check size={17} /> <span>Finalizar</span></button>
             <button className="workout-close" type="button" onClick={() => setShowExit(true)}><X size={21} /> <span>Salir</span></button>
           </div>
@@ -2130,10 +2144,10 @@ function WorkoutSession({
                         type="number"
                         min="0"
                         step="0.5"
-                        value={set.weight || ''}
+                        value={displayWeight(set.weight, set.unit, unit) || ''}
                         placeholder="0"
                         onPointerDown={focusSetInputWithoutScroll}
-                        onChange={(event) => updateSet(index, { weight: Number(event.target.value) })}
+                        onChange={(event) => updateSet(index, { weight: Number(event.target.value), unit })}
                         aria-label={`Peso de la serie ${index + 1}`}
                       />
                       <small>{unit}</small>
@@ -2967,7 +2981,7 @@ export default function App() {
       </main>
       {builderMode && <RoutineBuilderModal initialRoutine={builderMode === 'edit' ? state.routine : undefined} onClose={() => setBuilderMode(null)} onSave={saveRoutine} />}
       {deleteRoutineOpen && <DeleteRoutineModal routineName={state.routine.name} hasPausedSession={!!pausedDraft} onClose={() => setDeleteRoutineOpen(false)} onConfirm={deleteRoutine} />}
-      {activeWorkout && <WorkoutSession active={activeWorkout} logs={state.logs} unit={state.unit} userEmail={authUser.email} onClose={() => setActiveWorkout(null)} onFinish={finishWorkout} />}
+      {activeWorkout && <WorkoutSession active={activeWorkout} logs={state.logs} unit={state.unit} userEmail={authUser.email} onToggleUnit={toggleUnit} onClose={() => setActiveWorkout(null)} onFinish={finishWorkout} />}
       {completedLog && <CompletionModal log={completedLog} onClose={() => { setCompletedLog(null); setPage('inicio'); }} />}
       {toast && <Toast message={toast} />}
     </div>

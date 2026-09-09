@@ -2968,10 +2968,16 @@ button:disabled {
 }
 
 .routine-day-tab > strong {
+  display: -webkit-box;
+  min-height: 34px;
   margin-top: 12px;
+  overflow: hidden;
   font-family: var(--font-display);
   font-size: 14px;
+  line-height: 1.2;
   letter-spacing: -0.03em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .routine-day-tab > small {
@@ -5221,6 +5227,20 @@ button:disabled {
   gap: 7px;
 }
 
+.workout-unit-toggle {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.workout-unit-toggle span {
+  color: #7f877c;
+}
+
+.workout-unit-toggle span.selected {
+  color: #1a1f18;
+  background: var(--lime);
+}
+
 .workout-header-finish {
   display: flex;
   min-height: 36px;
@@ -6867,7 +6887,13 @@ button:disabled {
 
   .workout-header {
     height: 64px;
+    grid-template-columns: auto minmax(68px, 1fr) auto;
+    gap: 8px;
     padding: 0 14px;
+  }
+
+  .workout-timer {
+    justify-self: center;
   }
 
   .workout-brand > span,
@@ -6880,6 +6906,16 @@ button:disabled {
     width: 36px;
     padding: 0;
     justify-content: center;
+  }
+
+  .workout-unit-toggle {
+    padding: 3px;
+  }
+
+  .workout-unit-toggle span {
+    width: 24px;
+    height: 26px;
+    font-size: 8px;
   }
 
   .workout-progress {
