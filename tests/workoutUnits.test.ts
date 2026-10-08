@@ -36,6 +36,21 @@ function click(text: string) {
 }
 const draft = () => JSON.parse(localStorage.getItem(key)!);
 describe('independent exercise weight units', () => {
+  it('keeps a compact two-button selector beside the series with accessible exercise context', () => {
+    render();
+    const toolbar = host.querySelector('.exercise-set-toolbar');
+    const controls = toolbar?.querySelector('[role="group"]');
+    expect(toolbar?.nextElementSibling?.classList.contains('set-table')).toBe(true);
+    expect(controls?.getAttribute('aria-label')).toBe('Unidad de peso para Press');
+    expect(controls?.getAttribute('aria-description')).toContain('Solo cambia este ejercicio');
+    expect([...controls!.querySelectorAll('button')].map(button => button.textContent)).toEqual(['KG', 'LB']);
+    expect(controls?.querySelector('button[aria-pressed="true"]')?.textContent).toBe('KG');
+    expect(controls?.querySelector('span, small')).toBeNull();
+    expect(controls?.querySelector('button')?.title).toBe('Kilogramos · solo este ejercicio');
+    click('Siguiente ejercicio');
+    expect(controls?.getAttribute('aria-label')).toBe('Unidad de peso para Row');
+    expect(controls?.querySelector('button[aria-pressed="true"]')?.textContent).toBe('LB');
+  });
   it('changes only the current exercise, preserving physical load and completed state', () => {
     render(); click('LB');
     expect(draft().exerciseLogs[0].sets[0]).toMatchObject({ unit: 'lb', reps: 10, done: true });

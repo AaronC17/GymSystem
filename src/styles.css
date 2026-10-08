@@ -23,13 +23,6 @@
 .completion-community { margin-top: 10px; }
 .history-shared-description { margin: 0 0 20px; padding: 16px; background: var(--canvas); border-radius: 12px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.7; text-align: left; }
 
-.exercise-unit-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
-.exercise-unit-controls > span { font-size: 12px; font-weight: 700; margin-right: 6px; }
-.exercise-unit-controls > button { min-width: 48px; min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-weight: 700; cursor: pointer; }
-.exercise-unit-controls > button.selected { background: var(--lime); border-color: var(--lime-deep); }
-.exercise-unit-controls > button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-.exercise-unit-controls > small { flex-basis: 100%; color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
-
 .sync-status-banner {
   display: flex;
   align-items: center;
@@ -5521,8 +5514,65 @@ button:disabled {
   font-size: 10px;
 }
 
+.exercise-set-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 18px 0 8px;
+}
+
+.exercise-set-toolbar > span {
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.exercise-unit-controls {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+}
+
+.exercise-unit-controls > button {
+  display: grid;
+  min-width: 36px;
+  min-height: 32px;
+  place-items: center;
+  padding: 0 6px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  touch-action: manipulation;
+}
+
+.exercise-unit-controls > button:hover {
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+.exercise-unit-controls > button.selected {
+  color: var(--ink);
+  background: var(--lime);
+}
+
+.exercise-unit-controls > button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 .set-table {
-  margin-top: 33px;
+  margin-top: 0;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 15px;
@@ -7056,7 +7106,6 @@ button:disabled {
   }
 
   .set-table {
-    margin-top: 20px;
     border: 0;
     background: transparent;
   }

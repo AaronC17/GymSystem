@@ -2211,10 +2211,11 @@ export function WorkoutSession({
               <div className="exercise-target"><Target size={19} /><div><span>OBJETIVO</span><strong>{exercise.sets} × {exercise.reps}</strong></div></div>
             </div>
 
-            <div className="exercise-unit-controls" role="group" aria-label={`Unidad de peso para ${exercise.name}`}>
-              <span>Unidad de este ejercicio</span>
-              {(['kg', 'lb'] as const).map(value => <button key={value} type="button" className={exerciseUnit === value ? 'selected' : ''} aria-pressed={exerciseUnit === value} onClick={() => selectExerciseUnit(value)}>{value === 'kg' ? 'KG' : 'LB'}</button>)}
-              <small>No cambia los demás ejercicios. Convierte el peso ya registrado.</small>
+            <div className="exercise-set-toolbar">
+              <span>SERIES</span>
+              <div className="exercise-unit-controls" role="group" aria-label={`Unidad de peso para ${exercise.name}`} aria-description="Solo cambia este ejercicio y convierte el peso ya registrado.">
+                {(['kg', 'lb'] as const).map(value => <button key={value} type="button" className={exerciseUnit === value ? 'selected' : ''} aria-pressed={exerciseUnit === value} title={`${value === 'kg' ? 'Kilogramos' : 'Libras'} · solo este ejercicio`} onClick={() => selectExerciseUnit(value)}>{value === 'kg' ? 'KG' : 'LB'}</button>)}
+              </div>
             </div>
 
             <div className="set-table">
