@@ -6,8 +6,8 @@ const COOKIE_NAME = 'kyon-session';
 const SESSION_SECONDS = 60 * 60 * 12;
 const REMEMBERED_SESSION_SECONDS = 60 * 60 * 24 * 30;
 
-type SessionPayload = AuthUser & { exp: number };
-type SessionIdentity = { email: string };
+type SessionPayload = AuthUser & { exp: number; credentialVersion?: string };
+type SessionIdentity = { email: string; credentialVersion?: string };
 
 function getSecret() {
   const secret = process.env.SESSION_SECRET;
@@ -29,9 +29,10 @@ function parseCookies(header: string | undefined) {
   }));
 }
 
-export function createSession(user: AuthUser, remember: boolean) {
+export function createSession(user: AuthUser, remember: boolean, credentialVersion?: string) {
+  if (credentialVersion !== undefined && !/^[a-f\d]{32}$/.test(credentialVersion)) throw new Error('Invalid credential version.');
   const maxAge = remember ? REMEMBERED_SESSION_SECONDS : SESSION_SECONDS;
-  const payload: SessionPayload = { ...user, exp: Math.floor(Date.now() / 1000) + maxAge };
+  const payload: SessionPayload = { ...user, exp: Math.floor(Date.now() / 1000) + maxAge, credentialVersion };
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
   return { token: `${encoded}.${sign(encoded)}`, maxAge };
 }
@@ -53,9 +54,10 @@ export function readSession(req: VercelRequest): SessionIdentity | null {
 
   try {
     const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as Partial<SessionPayload>;
-    if (typeof payload.email !== 'string' || typeof payload.exp !== 'number' || payload.exp <= Date.now() / 1000) return null;
+    if (typeof payload.email !== 'string' || typeof payload.exp !== 'number' || !Number.isFinite(payload.exp) || payload.exp <= Date.now() / 1000) return null;
+    if (payload.credentialVersion !== undefined && (typeof payload.credentialVersion !== 'string' || !/^[a-f\d]{32}$/.test(payload.credentialVersion))) return null;
     const email = payload.email.trim().toLowerCase();
-    return email ? { email } : null;
+    return email ? { email, ...(payload.credentialVersion === undefined ? {} : { credentialVersion: payload.credentialVersion }) } : null;
   } catch {
     return null;
   }

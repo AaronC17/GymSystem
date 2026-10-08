@@ -1,4 +1,4 @@
-import { scryptSync, timingSafeEqual } from 'node:crypto';
+import { verifyAccountPassword } from './password.js';
 
 type Account = {
   email: string;
@@ -39,10 +39,8 @@ export function findAccount(email: string) {
   return accounts.find((account) => account.email === normalized) ?? null;
 }
 
-export function authenticateAccount(email: string, password: string) {
+export async function authenticateAccount(email: string, password: string) {
   const account = findAccount(email);
   if (!account || password.length > 256) return null;
-  const expected = Buffer.from(account.hash, 'hex');
-  const received = scryptSync(password, account.salt, expected.length);
-  return timingSafeEqual(expected, received) ? account : null;
+  return await verifyAccountPassword(password, account.salt, account.hash) ? account : null;
 }

@@ -20,6 +20,54 @@
   --font-display: 'Manrope', sans-serif;
 }
 
+.completion-community { margin-top: 10px; }
+.history-shared-description { margin: 0 0 20px; padding: 16px; background: var(--canvas); border-radius: 12px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.7; text-align: left; }
+
+.exercise-unit-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
+.exercise-unit-controls > span { font-size: 12px; font-weight: 700; margin-right: 6px; }
+.exercise-unit-controls > button { min-width: 48px; min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-weight: 700; cursor: pointer; }
+.exercise-unit-controls > button.selected { background: var(--lime); border-color: var(--lime-deep); }
+.exercise-unit-controls > button:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.exercise-unit-controls > small { flex-basis: 100%; color: var(--ink-soft); font-size: 11px; line-height: 1.5; }
+
+.sync-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 24px 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+}
+
+.sync-status-banner strong {
+  font-size: 12px;
+}
+
+.sync-status-banner p {
+  margin: 5px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.sync-status-banner button {
+  flex-shrink: 0;
+  min-height: 44px;
+}
+
+@media (max-width: 480px) {
+  .sync-status-banner {
+    flex-direction: column;
+    align-items: stretch;
+    margin-inline: 16px;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -1033,13 +1081,14 @@ button:disabled {
   border-radius: 24px;
   background: rgba(251, 251, 248, 0.94);
   box-shadow: 0 25px 65px rgba(30, 35, 27, 0.1);
+  text-align: center;
 }
 
 .paywall-icon {
   display: grid;
   width: 51px;
   height: 51px;
-  margin-bottom: 20px;
+  margin: 0 auto 20px;
   place-items: center;
   color: #20271a;
   border-radius: 15px;
@@ -1048,7 +1097,7 @@ button:disabled {
 }
 
 .paywall-card > span {
-  color: #83962b;
+  color: var(--ink-soft);
   font-size: 8px;
   font-weight: 800;
   letter-spacing: 0.18em;
@@ -1060,11 +1109,12 @@ button:disabled {
   font-size: 29px;
   line-height: 1.12;
   letter-spacing: -0.055em;
+  text-wrap: balance;
 }
 
 .paywall-card > p {
   margin: 0;
-  color: #81877e;
+  color: var(--ink-soft);
   font-size: 10px;
   line-height: 1.55;
 }
@@ -1094,18 +1144,12 @@ button:disabled {
   background: var(--lime);
 }
 
-.sinpe-mark > b {
-  position: absolute;
-  right: 3px;
-  bottom: 1px;
-  font-family: var(--font-display);
-  font-size: 10px;
-}
-
 .sinpe-payment-card > div:nth-child(2) {
   display: flex;
   min-width: 0;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
 
 .sinpe-payment-card > div:nth-child(2) strong {
@@ -1115,13 +1159,13 @@ button:disabled {
 
 .sinpe-payment-card > div:nth-child(2) small {
   margin-top: 3px;
-  color: #838b80;
+  color: #bdc4b8;
   font-size: 7px;
 }
 
 .sinpe-payment-card > b {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   flex-direction: column;
   color: var(--lime);
   font-family: var(--font-display);
@@ -1131,7 +1175,7 @@ button:disabled {
 
 .sinpe-payment-card > b small {
   margin-top: 1px;
-  color: #92998f;
+  color: #bdc4b8;
   font-family: 'DM Sans', sans-serif;
   font-size: 7px;
   letter-spacing: 0;
@@ -1142,6 +1186,7 @@ button:disabled {
   flex-direction: column;
   gap: 10px;
   margin: 21px 2px;
+  align-items: center;
 }
 
 .paywall-benefits span {
@@ -1151,6 +1196,8 @@ button:disabled {
   color: #5f665c;
   font-size: 9px;
   font-weight: 600;
+  justify-content: center;
+  text-align: center;
 }
 
 .paywall-benefits svg {
@@ -1200,6 +1247,27 @@ button:disabled {
 
 .paywall-refresh:disabled {
   cursor: wait;
+}
+
+.paywall-profile-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  margin: 10px auto 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.paywall-profile-link:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 6px;
 }
 
 .paywall-feedback {
@@ -6032,21 +6100,38 @@ button:disabled {
   .main-nav {
     display: grid;
     height: 100%;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 4px;
     margin: 0;
   }
 
   .main-nav.admin-nav {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .main-nav.restricted-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .main-nav.admin-nav .nav-item {
+    padding-inline: 2px;
+  }
+
+  .restricted-access-link {
+    position: absolute;
+    right: 12px;
+    bottom: 76px;
+    min-height: 44px;
   }
 
   .nav-item {
     min-width: 0;
     height: 100%;
     justify-content: center;
-    gap: 6px;
-    padding: 0 8px;
+    flex-direction: column;
+    gap: 3px;
+    padding: 0 2px;
+    font-size: 9px;
   }
 
   .nav-item.active::after {
@@ -7474,6 +7559,24 @@ button:disabled {
   .history-modal-header {
     padding: 17px 16px 14px;
   }
+}
+
+/* Small secondary labels need text contrast without changing active markers. */
+.unit-toggle:not(.workout-unit-toggle) span:not(.selected),
+.week-day:not(.today):not(.completed) > span,
+.completion-stats span {
+  color: var(--ink-soft);
+}
+
+/* Keep keyboard focus visible on controls whose inner outline is suppressed. */
+a:focus-visible,
+textarea:focus-visible,
+.chart-controls > label:focus-within,
+.admin-users-tools label:focus-within,
+.editor-exercise > label:focus-within,
+.login-options input:focus-visible + i {
+  outline: 2px solid #667719;
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -11,7 +11,10 @@ function connectMongo() {
 }
 
 export async function getDatabase() {
-  globalMongo.kyonMongoClient ??= connectMongo();
-  const client = await globalMongo.kyonMongoClient;
+  const connection = globalMongo.kyonMongoClient ??= connectMongo();
+  const client = await connection.catch((error: unknown) => {
+    if (globalMongo.kyonMongoClient === connection) delete globalMongo.kyonMongoClient;
+    throw error;
+  });
   return client.db(process.env.MONGODB_DB || 'kyon');
 }

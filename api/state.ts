@@ -23,12 +23,20 @@ function createEmptyState(): AppState {
 }
 
 function readBody(req: VercelRequest) {
-  if (typeof req.body === 'string') return JSON.parse(req.body) as unknown;
-  return req.body as unknown;
+  if (typeof req.body !== 'string') return req.body;
+  try {
+    return JSON.parse(req.body) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function isMutation(value: unknown): value is StateMutation {
-  if (!value || typeof value !== 'object') return false;
+  if (!isRecord(value)) return false;
   const mutation = value as Partial<StateMutation> & Record<string, unknown>;
   if (typeof mutation.id !== 'string' || mutation.id.length < 8 || mutation.id.length > 120) return false;
   if (mutation.type === 'deleteRoutine') return true;
@@ -86,25 +94,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const account = await resolveSessionAccess(req);
     if (!account) return res.status(401).json({ message: 'Inicia sesión para continuar.' });
     const { user, access } = account;
+    // The cookie remains authoritative. This header only detects a stale tab or
+    // request queue captured for a different user; it never grants access.
+    const expectedOwner = req.headers['x-kyon-user-email'];
+    if (expectedOwner !== undefined && (typeof expectedOwner !== 'string' || expectedOwner.trim().toLowerCase() !== user.email)) {
+      return res.status(409).json({
+        code: 'SESSION_OWNER_MISMATCH',
+        message: 'La sesión cambió de usuario. Inicia sesión de nuevo para sincronizar.',
+      });
+    }
     if (req.method !== 'GET' && !hasValidOrigin(req)) return res.status(403).json({ message: 'Origen no permitido.' });
     if ((req.method === 'GET' || req.method === 'POST' || req.method === 'PATCH') && access.status === 'expired') {
       return res.status(402).json({ message: 'Tu prueba de 14 días finalizó.', access });
     }
 
-    const collection = await getCollection();
-
     if (req.method === 'GET') {
+      const collection = await getCollection();
       const document = await collection.findOne({ _id: user.email });
-      return res.status(200).json({ state: document?.state ?? null, revision: document?.revision ?? null });
+      return res.status(200).json({ state: document?.state ?? null, revision: document?.revision ?? null, userEmail: user.email });
     }
 
     if (req.method === 'POST') {
-      const body = readBody(req) as { state?: unknown };
-      const candidate = body?.state;
+      const body = readBody(req);
+      const candidate = isRecord(body) ? body.state : undefined;
       if (!isStoredState(candidate)) return res.status(400).json({ message: 'Los datos locales no tienen un formato válido.' });
       if (user.email === AARON_EMAIL && !candidate.logs.some((log) => log.completed)) {
         return res.status(409).json({ message: 'Abre Safari con el entrenamiento completado para realizar la migración inicial.' });
       }
+      const collection = await getCollection();
       const now = new Date();
       const document: UserStateDocument = {
         _id: user.email,
@@ -117,7 +134,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
       try {
         await collection.insertOne(document);
-        return res.status(201).json({ state: document.state, revision: document.revision });
+        return res.status(201).json({ state: document.state, revision: document.revision, userEmail: user.email });
       } catch (error) {
         if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
           const current = await collection.findOne({ _id: user.email });
@@ -125,6 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             message: 'Esta cuenta ya fue sincronizada desde otro navegador.',
             state: current?.state ?? null,
             revision: current?.revision ?? null,
+            userEmail: user.email,
           });
         }
         throw error;
@@ -134,9 +152,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'PATCH') {
       const mutation = readBody(req);
       if (!isMutation(mutation)) return res.status(400).json({ message: 'El cambio solicitado no es válido.' });
+      const collection = await getCollection();
       const document = await mutateState(collection, user.email, mutation);
       if (!document) return res.status(409).json({ message: 'Primero debes sincronizar los datos de esta cuenta.' });
-      return res.status(200).json({ state: document.state, revision: document.revision });
+      return res.status(200).json({ state: document.state, revision: document.revision, userEmail: user.email });
     }
 
     res.setHeader('Allow', 'GET, POST, PATCH');

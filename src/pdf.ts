@@ -1,28 +1,27 @@
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import type { ParsedRoutine } from './types';
+import {
+  groupVisualLines,
+  partitionExerciseNames,
+  type PositionedText,
+  type RowAnchor,
+  type VisualLine,
+} from './pdf-parser';
+import {
+  assertPdfDayHeadingCount,
+  assertPdfExerciseCount,
+  assertPdfFileSize,
+  assertPdfPageCount,
+  assertPdfSetCount,
+  assertPdfTextItemCount,
+  assertPdfTotalVisualLineCount,
+  consumePdfTextBudget,
+  createPdfPartitionBudget,
+  createPdfTextBudget,
+} from './pdf-limits';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
-
-type PositionedText = {
-  text: string;
-  x: number;
-  top: number;
-  width: number;
-  height: number;
-};
-
-type VisualLine = {
-  top: number;
-  items: PositionedText[];
-  text: string;
-};
-
-type RowAnchor = {
-  top: number;
-  sets: number;
-  accordingToVideo: boolean;
-};
 
 const dayMatchers = [
   { index: 1, regex: /\b(lunes|monday)\b/i },
@@ -66,41 +65,6 @@ function cleanExerciseName(value: string) {
       .replace(/([(])\s+/g, '$1')
       .replace(/\s{2,}/g, ' '),
   );
-}
-
-function joinPositionedItems(items: PositionedText[]) {
-  const sorted = items.slice().sort((a, b) => a.x - b.x);
-  let result = '';
-  let rightEdge = 0;
-
-  for (const item of sorted) {
-    const text = item.text.trim();
-    if (!text) continue;
-    const gap = item.x - rightEdge;
-    const needsSpace = result && gap > Math.max(0.8, item.height * 0.08) && !/^[,.;:)]/.test(text);
-    result += `${needsSpace ? ' ' : ''}${text}`;
-    rightEdge = Math.max(rightEdge, item.x + item.width);
-  }
-
-  return result.replace(/\s+/g, ' ').trim();
-}
-
-function groupVisualLines(items: PositionedText[], tolerance = 2.5): VisualLine[] {
-  const sorted = items.slice().sort((a, b) => a.top - b.top || a.x - b.x);
-  const lines: Array<{ top: number; items: PositionedText[] }> = [];
-
-  for (const item of sorted) {
-    const latestLine = lines.at(-1);
-    const line = latestLine && Math.abs(latestLine.top - item.top) <= tolerance ? latestLine : undefined;
-    if (line) {
-      line.items.push(item);
-      line.top = line.items.reduce((sum, entry) => sum + entry.top, 0) / line.items.length;
-    } else {
-      lines.push({ top: item.top, items: [item] });
-    }
-  }
-
-  return lines.map((line) => ({ ...line, text: joinPositionedItems(line.items) }));
 }
 
 function detectDayHeading(line: string) {
@@ -154,65 +118,14 @@ function buildRowAnchors(seriesItems: PositionedText[], headerTop: number): RowA
   const lines = groupVisualLines(seriesItems)
     .filter((line) => line.top > headerTop + 5 && normalize(line.text) !== 'series');
   const numeric: RowAnchor[] = lines
-    .filter((line) => /^[1-9]\d?$/.test(line.text.trim()))
-    .map((line) => ({ top: line.top, sets: Math.min(10, Number(line.text.trim())), accordingToVideo: false }));
+    .filter((line) => /^[+-]?\d+(?:[.,]\d+)?$/.test(line.text.trim()))
+    .map((line) => {
+      const sets = Number(line.text.trim().replace(',', '.'));
+      assertPdfSetCount(sets);
+      return { top: line.top, sets, accordingToVideo: false };
+    });
   const specialLines = lines.filter((line) => !/^\d+$/.test(line.text.trim()) && /seg[uú]n|video|lo que|dice en/i.test(line.text));
   return [...numeric, ...clusterSpecialAnchors(specialLines)].sort((a, b) => a.top - b.top);
-}
-
-function groupCost(lines: VisualLine[], anchor: RowAnchor) {
-  const center = (lines[0].top + lines.at(-1)!.top) / 2;
-  const distance = center - anchor.top;
-  const startsAsContinuation = /^[a-záéíóúüñ(]/.test(lines[0].text.trim()) ? 900 : 0;
-  const excessiveLength = Math.max(0, lines.length - 7) * 700;
-  return distance * distance + startsAsContinuation + excessiveLength;
-}
-
-function partitionExerciseNames(lines: VisualLine[], anchors: RowAnchor[]) {
-  if (!anchors.length || lines.length < anchors.length) return [];
-  const rowCount = anchors.length;
-  const lineCount = lines.length;
-  const costs = Array.from({ length: rowCount + 1 }, () => Array(lineCount + 1).fill(Number.POSITIVE_INFINITY));
-  const previous = Array.from({ length: rowCount + 1 }, () => Array(lineCount + 1).fill(-1));
-  costs[0][0] = 0;
-
-  for (let row = 1; row <= rowCount; row += 1) {
-    for (let end = row; end <= lineCount; end += 1) {
-      const maxStart = end - 1;
-      const minStart = row - 1;
-      for (let start = minStart; start <= maxStart; start += 1) {
-        if (!Number.isFinite(costs[row - 1][start])) continue;
-        const remainingLines = lineCount - end;
-        const remainingRows = rowCount - row;
-        if (remainingLines < remainingRows) continue;
-        const candidate = costs[row - 1][start] + groupCost(lines.slice(start, end), anchors[row - 1]);
-        if (candidate < costs[row][end]) {
-          costs[row][end] = candidate;
-          previous[row][end] = start;
-        }
-      }
-    }
-  }
-
-  let bestEnd = rowCount;
-  let bestCost = Number.POSITIVE_INFINITY;
-  for (let end = rowCount; end <= lineCount; end += 1) {
-    const unassignedPenalty = (lineCount - end) * 1800;
-    if (costs[rowCount][end] + unassignedPenalty < bestCost) {
-      bestCost = costs[rowCount][end] + unassignedPenalty;
-      bestEnd = end;
-    }
-  }
-
-  const groups: VisualLine[][] = [];
-  let end = bestEnd;
-  for (let row = rowCount; row >= 1; row -= 1) {
-    const start = previous[row][end];
-    if (start < 0) return [];
-    groups.unshift(lines.slice(start, end));
-    end = start;
-  }
-  return groups;
 }
 
 function linesForRow(lines: VisualLine[], anchors: RowAnchor[], index: number) {
@@ -235,20 +148,26 @@ function cleanReps(value: string, accordingToVideo: boolean) {
 
 function parseStructuredTables(pages: PositionedText[][], fallbackName: string): ParsedRoutine | null {
   const parsedDays: ParsedRoutine['days'] = [];
+  const partitionBudget = createPdfPartitionBudget();
+  let totalExercises = 0;
+  let totalDayHeadings = 0;
 
   for (const pageItems of pages) {
     const pageLines = groupVisualLines(pageItems);
     const headings = pageLines
       .map((line) => ({ line, day: detectDayHeading(line.text) }))
       .filter((entry): entry is { line: VisualLine; day: NonNullable<ReturnType<typeof detectDayHeading>> } => Boolean(entry.day));
+    assertPdfDayHeadingCount(headings.length, totalDayHeadings + headings.length);
+    totalDayHeadings += headings.length;
 
     headings.forEach((heading, headingIndex) => {
       const nextHeadingTop = headings[headingIndex + 1]?.line.top ?? Number.POSITIVE_INFINITY;
       const stopLine = pageLines.find((line) => line.top > heading.line.top && line.top < nextHeadingTop && tableStopWords.test(line.text.trim()));
       const sectionEnd = Math.min(nextHeadingTop, stopLine?.top ?? Number.POSITIVE_INFINITY);
       const headerLine = pageLines.find((line) => {
+        if (line.top <= heading.line.top || line.top >= sectionEnd) return false;
         const text = normalize(line.text);
-        return line.top > heading.line.top && line.top < sectionEnd && text.includes('ejercicio') && text.includes('series') && text.includes('reps');
+        return /ejercicio|exercise/.test(text) && /series|sets/.test(text) && /reps|repeticiones/.test(text);
       });
       if (!headerLine) return;
 
@@ -277,7 +196,7 @@ function parseStructuredTables(pages: PositionedText[][], fallbackName: string):
 
       const exerciseLines = groupVisualLines(column('exercise'))
         .filter((line) => line.top > headerLine.top + 5 && !/^(ejercicio|exercise)$/i.test(line.text.trim()));
-      const nameGroups = partitionExerciseNames(exerciseLines, anchors);
+      const nameGroups = partitionExerciseNames(exerciseLines, anchors, partitionBudget);
       if (nameGroups.length !== anchors.length) return;
 
       const repsLines = groupVisualLines(column('reps'));
@@ -304,10 +223,16 @@ function parseStructuredTables(pages: PositionedText[][], fallbackName: string):
       const existingDay = parsedDays.find((day) => day.dayOfWeek === heading.day.dayOfWeek);
       if (existingDay) {
         for (const exercise of exercises) {
-          if (!existingDay.exercises.some((item) => normalize(item.name) === normalize(exercise.name))) existingDay.exercises.push(exercise);
+          if (!existingDay.exercises.some((item) => normalize(item.name) === normalize(exercise.name))) {
+            assertPdfExerciseCount(existingDay.exercises.length + 1, totalExercises + 1);
+            existingDay.exercises.push(exercise);
+            totalExercises += 1;
+          }
         }
         if (heading.day.title && /^Entrenamiento \d+$/.test(existingDay.title)) existingDay.title = heading.day.title;
       } else {
+        assertPdfExerciseCount(exercises.length, totalExercises + exercises.length);
+        totalExercises += exercises.length;
         const fallbackTitle = heading.day.title || dayNames[heading.day.dayOfWeek] || `Entrenamiento ${parsedDays.length + 1}`;
         parsedDays.push({
           dayOfWeek: heading.day.dayOfWeek,
@@ -328,17 +253,21 @@ function parseStructuredTables(pages: PositionedText[][], fallbackName: string):
 function parseExerciseLine(line: string) {
   const clean = line.replace(/[•●▪]/g, '').replace(/\s+/g, ' ').trim();
   if (clean.length < 4 || clean.length > 140 || ignoredWords.test(clean) || /https?:\/\//i.test(clean)) return null;
+  const explicitSets = clean.match(/(?:^|\s|\|)([+-]?\d+(?:[.,]\d+)?)\s*(?:series?\s*)?(?:x|×|de|\|)\s*\d/i);
+  if (explicitSets) assertPdfSetCount(Number(explicitSets[1].replace(',', '.')));
   const patterns = [
-    /^(.{3,}?)\s*(?:[|:–—-]\s*)?(\d{1,2})\s*(?:series?\s*)?(?:x|×|de)\s*(\d{1,2}(?:\s*[–-]\s*\d{1,2})?)(?:\s*(?:reps?|repeticiones?))?/i,
-    /^(.{3,}?)\s*[|]\s*(\d{1,2})\s*[|]\s*(\d{1,2}(?:\s*[–-]\s*\d{1,2})?)/i,
-    /^(.{3,}?)\s+(\d{1,2})\s+(\d{1,2}(?:\s*[–-]\s*\d{1,2})?)(?:\s+\d{1,3}\s*s?)?$/i,
+    /^(.{3,}?)\s*(?:[|:–—-]\s*)?(\d{1,2})\s*(?:series?\s*)?(?:x|×|de)\s*(\d{1,2}(?:\s*[–—-]\s*\d{1,2})?)(?:\s*(?:reps?|repeticiones?))?/i,
+    /^(.{3,}?)\s*[|]\s*(\d{1,2})\s*[|]\s*(\d{1,2}(?:\s*[–—-]\s*\d{1,2})?)/i,
+    /^(.{3,}?)\s+(\d{1,2})\s+(\d{1,2}(?:\s*[–—-]\s*\d{1,2})?)(?:\s+\d{1,3}\s*s?)?$/i,
   ];
   for (const pattern of patterns) {
     const match = clean.match(pattern);
     if (!match) continue;
     const name = cleanExerciseName(match[1]);
     if (name.length < 3) continue;
-    return { name, sets: Math.min(10, Number(match[2])), reps: match[3].replace(/\s/g, '').replace('-', '–'), rest: 180 };
+    const sets = Number(match[2]);
+    assertPdfSetCount(sets);
+    return { name, sets, reps: match[3].replace(/\s/g, '').replace(/[—-]/g, '–'), rest: 180 };
   }
   if (exerciseWords.test(clean) && !/\d{3,}/.test(clean)) return { name: cleanExerciseName(clean), sets: 3, reps: '8–12', rest: 180 };
   return null;
@@ -348,6 +277,7 @@ function parseLinearText(lines: string[], fallbackName: string): ParsedRoutine {
   const days: ParsedRoutine['days'] = [];
   let currentDay: ParsedRoutine['days'][number] | null = null;
   let fallbackDay = 1;
+  let totalExercises = 0;
 
   for (const rawLine of lines) {
     const line = rawLine.replace(/\s+/g, ' ').trim();
@@ -368,7 +298,11 @@ function parseLinearText(lines: string[], fallbackName: string): ParsedRoutine {
       days.push(currentDay);
       fallbackDay = fallbackDay === 6 ? 1 : fallbackDay + 1;
     }
-    if (!currentDay.exercises.some((item) => normalize(item.name) === normalize(exercise.name))) currentDay.exercises.push(exercise);
+    if (!currentDay.exercises.some((item) => normalize(item.name) === normalize(exercise.name))) {
+      assertPdfExerciseCount(currentDay.exercises.length + 1, totalExercises + 1);
+      currentDay.exercises.push(exercise);
+      totalExercises += 1;
+    }
   }
 
   const populatedDays = days.filter((day) => day.exercises.length > 0);
@@ -379,17 +313,25 @@ function parseLinearText(lines: string[], fallbackName: string): ParsedRoutine {
 }
 
 export async function parseRoutinePdf(file: File): Promise<ParsedRoutine> {
+  assertPdfFileSize(file.size);
   const bytes = new Uint8Array(await file.arrayBuffer());
+  assertPdfFileSize(bytes.byteLength);
   const loadingTask = pdfjs.getDocument({ data: bytes });
-  const document = await loadingTask.promise;
   const pages: PositionedText[][] = [];
   const fallbackLines: string[] = [];
+  const textBudget = createPdfTextBudget();
 
   try {
-    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    const document = await loadingTask.promise;
+    const pageCount = document.numPages;
+    assertPdfPageCount(pageCount);
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       const viewport = page.getViewport({ scale: 1 });
       const content = await page.getTextContent();
+      assertPdfTextItemCount(content.items.length);
+      const characters = content.items.reduce((total, item) => total + ('str' in item ? item.str.length : 0), 0);
+      consumePdfTextBudget(content.items.length, characters, textBudget);
       const items: PositionedText[] = [];
 
       for (const item of content.items) {
@@ -403,11 +345,14 @@ export async function parseRoutinePdf(file: File): Promise<ParsedRoutine> {
         });
       }
       pages.push(items);
-      fallbackLines.push(...groupVisualLines(items).map((line) => line.text));
+      const pageLines = groupVisualLines(items);
+      assertPdfTotalVisualLineCount(fallbackLines.length + pageLines.length);
+      fallbackLines.push(...pageLines.map((line) => line.text));
     }
 
     return parseStructuredTables(pages, file.name) ?? parseLinearText(fallbackLines, file.name);
   } finally {
-    await document.destroy();
+    // Also runs when loadingTask.promise rejects, before a document exists.
+    await loadingTask.destroy();
   }
 }

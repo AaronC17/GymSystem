@@ -4,16 +4,21 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.19.0"
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev:full": "npx vercel@63.1.0 dev --listen 3000",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:client-secrets": "node scripts/check-client-secrets.mjs",
+    "build": "tsc -b && vite build && npm run check:client-secrets",
     "preview": "vite preview"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
-    "mongodb": "^7.6.0",
+    "mongodb": "^7.7.0",
     "pdfjs-dist": "^4.10.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -23,7 +28,9 @@
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
+    "happy-dom": "^20.14.5",
     "typescript": "~5.7.2",
-    "vite": "^6.0.5"
+    "vite": "^6.4.4",
+    "vitest": "^4.1.11"
   }
 }

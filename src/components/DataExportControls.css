@@ -1,0 +1,89 @@
+.data-export-controls {
+  position: relative;
+}
+
+.data-export-controls > summary {
+  list-style: none;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.data-export-controls > summary::-webkit-details-marker {
+  display: none;
+}
+
+.data-export-controls > summary:focus-visible,
+.data-export-options button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.data-export-options {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+  width: min(290px, calc(100vw - 32px));
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(27, 32, 26, 0.14);
+}
+
+.data-export-options > strong {
+  display: block;
+  font-size: 13px;
+}
+
+.data-export-options p,
+.data-export-options > small {
+  display: block;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.data-export-options p {
+  margin: 6px 0 12px;
+}
+
+.data-export-options > small {
+  margin-top: 12px;
+}
+
+.data-export-options button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 6px;
+  padding: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: var(--canvas);
+  text-align: left;
+  color: var(--ink);
+}
+
+.data-export-options button b,
+.data-export-options button small {
+  display: block;
+}
+
+.data-export-options button b {
+  font-size: 12px;
+}
+
+.data-export-options button small {
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+
+@media print {
+  .data-export-controls {
+    display: none;
+  }
+}

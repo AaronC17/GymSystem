@@ -57,6 +57,13 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { activateDialogFocus } from './dialogFocus';
+import { bestCompletedSet, plannedSessionsInMonth } from './metrics';
+import { DataExportControls } from './components/DataExportControls';
+import { ProfileView } from './components/ProfileView';
+import { FriendsView } from './components/FriendsView';
+import { clearSessionPreview, readSessionPreview, saveSessionPreview } from './sessionPreview';
+import type { SocialAction, SocialWorkoutDetail } from './socialTypes';
 import {
   ACCENT_COLORS,
   addDays,
@@ -78,18 +85,28 @@ import {
 } from './data';
 import {
   activateAdminUser,
+  actSocial,
   ApiError,
+  ApiOwnershipError,
+  ApiResponseError,
   bootstrapRemoteState,
+  changePasswordRemote,
   createMutation,
   getAdminUsers,
   getRemoteSession,
   getRemoteState,
+  getSocialDashboard,
+  getSocialWorkoutDetail,
+  findSocialPerson,
   loginRemote,
   logoutRemote,
   mutateRemoteState,
   registerRemote,
   type AdminUserSummary,
+  type StateRequestOptions,
 } from './api';
+import { AuthRequestQueue, normalizeUserEmail, SessionEpoch, type SessionToken } from './syncSession';
+import { DurableSyncSession, saveMigrationBackup, type SyncRemoteState } from './syncState';
 import type {
   AccessInfo,
   AppState,
@@ -103,7 +120,7 @@ import type {
   WorkoutLog,
 } from './types';
 
-type Page = 'inicio' | 'rutina' | 'calendario' | 'progreso' | 'admin';
+type Page = 'inicio' | 'rutina' | 'calendario' | 'progreso' | 'amigos' | 'perfil' | 'admin';
 
 type ActiveWorkout = {
   day: RoutineDay;
@@ -179,6 +196,35 @@ function useLockBodyScroll() {
       }
     };
   }, []);
+}
+
+function useAccessibleDialog<T extends HTMLElement>(
+  dialogRef: { current: T | null },
+  onEscape?: () => void,
+  returnFocus?: HTMLElement | null,
+  enabled = true,
+) {
+  const onEscapeRef = useRef(onEscape);
+  onEscapeRef.current = onEscape;
+  const returnFocusRef = useRef(returnFocus);
+  returnFocusRef.current = returnFocus;
+  const canEscape = useRef(onEscape !== undefined);
+
+  useLayoutEffect(() => {
+    if (!enabled) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const document = dialog.ownerDocument;
+    const appShell = document.querySelector<HTMLElement>('.app-shell');
+    const workoutShell = dialog.closest('.workout-overlay')?.querySelector<HTMLElement>('.workout-shell');
+    const backgroundElements = [appShell, workoutShell].filter((element): element is HTMLElement => element !== null && element !== undefined);
+    return activateDialogFocus(dialog, {
+      backgroundElements,
+      fallbackFocus: appShell,
+      returnFocus: returnFocusRef.current,
+      onEscape: canEscape.current ? () => onEscapeRef.current?.() : undefined,
+    });
+  }, [enabled]);
 }
 
 function stateCacheKey(email: string) {
@@ -418,9 +464,11 @@ function Logo({ compact = false }: { compact?: boolean }) {
 function LoginScreen({
   onLogin,
   onRegister,
+  sessionNotice,
 }: {
   onLogin: (email: string, password: string, remember: boolean) => Promise<void>;
   onRegister: (name: string, email: string, password: string) => Promise<void>;
+  sessionNotice?: string;
 }) {
   const [mode, setMode] = useState<'login' | 'register'>(() => window.location.hash === '#registro' ? 'register' : 'login');
   const [name, setName] = useState('');
@@ -600,7 +648,8 @@ function LoginScreen({
               </div>
             )}
 
-            {error && <p className="login-feedback error"><X size={14} /> {error}</p>}
+            {sessionNotice && <p className="login-feedback error" role="status"><X size={14} /> {sessionNotice}</p>}
+            {error && <p className="login-feedback error" role="alert"><X size={14} /> {error}</p>}
             {notice && <p className="login-feedback"><Check size={14} /> {notice}</p>}
 
             <button className="login-submit" type="submit" disabled={submitting}>
@@ -619,30 +668,36 @@ function LoginScreen({
   );
 }
 
-function TrialExpiredScreen({
-  user,
-  onRefresh,
-  onLogout,
-}: {
+function TrialExpiredScreen({ user, onLogout, onCheckAccess, onProfile }: {
   user: AuthUser;
-  onRefresh: () => Promise<boolean>;
   onLogout: () => void;
+  onCheckAccess: () => Promise<boolean>;
+  onProfile: () => void;
 }) {
   const [checking, setChecking] = useState(false);
-  const [error, setError] = useState('');
+  const checkingRef = useRef(false);
+  const [feedback, setFeedback] = useState('');
+  const activeRef = useRef(true);
+  useEffect(() => {
+    activeRef.current = true;
+    return () => { activeRef.current = false; };
+  }, []);
   const message = encodeURIComponent(`Hola, quiero activar mi acceso permanente a Kyon+ por ${ACCESS_PRICE} mediante SINPE Móvil. Mi cuenta es ${user.email}. ¿Me compartes los datos para realizar el pago?`);
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${message}`;
 
-  async function refresh() {
+  async function checkAccess() {
+    if (checkingRef.current) return;
+    checkingRef.current = true;
     setChecking(true);
-    setError('');
+    setFeedback('');
     try {
-      const active = await onRefresh();
-      if (!active) setError('Aún no aparece la activación. Escríbenos por WhatsApp después de realizar el SINPE.');
+      const active = await onCheckAccess();
+      if (activeRef.current && !active) setFeedback('La activación aún está pendiente. Verificamos el SINPE y activamos tu cuenta manualmente desde Admin.');
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'No fue posible comprobar tu acceso.');
+      if (activeRef.current) setFeedback(reason instanceof Error ? reason.message : 'No fue posible comprobar la activación.');
     } finally {
-      setChecking(false);
+      checkingRef.current = false;
+      if (activeRef.current) setChecking(false);
     }
   }
 
@@ -653,7 +708,7 @@ function TrialExpiredScreen({
         <div className="paywall-message">
           <span>14 DÍAS · OBJETIVO CUMPLIDO</span>
           <h1>Tu progreso ya tiene historia.<br /><em>Haz que continúe.</em></h1>
-          <p>Tu rutina, tus sesiones y cada carga permanecen guardadas. Activa Kyon+ una sola vez y sigue entrenando sin perder nada.</p>
+          <p>Escríbenos por WhatsApp para coordinar el pago. Después de verificarlo, activaremos tu cuenta manualmente desde el panel de administración. Tus datos permanecen guardados. Cuando te confirmemos la activación, recarga la app.</p>
         </div>
         <div className="paywall-timeline" aria-hidden="true">
           <div className="complete"><Check size={15} /><span><strong>Cuenta creada</strong><small>Día 1</small></span></div>
@@ -671,10 +726,10 @@ function TrialExpiredScreen({
           <div className="paywall-icon"><Crown size={25} /></div>
           <span>ACTIVA KYON+</span>
           <h2>Acceso completo, para siempre.</h2>
-          <p>Realiza un solo pago de {ACCESS_PRICE} por SINPE Móvil. Sin mensualidades ni renovaciones. Confirma la cuenta directamente por WhatsApp.</p>
+          <p>Coordina por WhatsApp el pago de {ACCESS_PRICE} por SINPE Móvil. Después de verificarlo, activaremos manualmente tu cuenta desde el panel de administración. Sin mensualidades ni renovaciones.</p>
 
           <div className="sinpe-payment-card">
-            <div className="sinpe-mark"><Smartphone size={19} /><b>S</b></div>
+            <div className="sinpe-mark" aria-hidden="true"><Smartphone size={22} /></div>
             <div><strong>SINPE MÓVIL</strong><small>Rápido y directo</small></div>
             <b>{ACCESS_PRICE}<small>pago único</small></b>
           </div>
@@ -686,8 +741,11 @@ function TrialExpiredScreen({
           </div>
 
           <a className="paywall-whatsapp" href={whatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={18} /> Pagar y activar por WhatsApp <ArrowRight size={17} /></a>
-          <button className="paywall-refresh" type="button" disabled={checking} onClick={() => void refresh()}>{checking ? <><i className="login-spinner" /> Comprobando...</> : <><RotateCcw size={15} /> Ya pagué, comprobar acceso</>}</button>
-          {error && <p className="paywall-feedback">{error}</p>}
+          <button className="paywall-refresh" type="button" disabled={checking} onClick={() => void checkAccess()}>
+            {checking ? <><i className="login-spinner" /> Comprobando...</> : <><RotateCcw size={15} /> Ya activaron mi cuenta, comprobar acceso</>}
+          </button>
+          {feedback && <p className="paywall-feedback" role="status">{feedback}</p>}
+          <button className="paywall-profile-link" type="button" onClick={onProfile}><UserRound size={15} /> Perfil y seguridad</button>
           <button className="paywall-logout" type="button" onClick={onLogout}>Cerrar sesión de {user.email}</button>
         </div>
       </section>
@@ -700,6 +758,8 @@ const navItems: Array<{ id: Page; label: string; icon: typeof Home }> = [
   { id: 'rutina', label: 'Mi rutina', icon: Dumbbell },
   { id: 'calendario', label: 'Calendario', icon: CalendarDays },
   { id: 'progreso', label: 'Progreso', icon: BarChart3 },
+  { id: 'amigos', label: 'Amigos', icon: Users },
+  { id: 'perfil', label: 'Perfil', icon: UserRound },
 ];
 const adminNavItem: { id: Page; label: string; icon: typeof Home } = { id: 'admin', label: 'Cuentas', icon: Users };
 
@@ -707,21 +767,23 @@ function Sidebar({
   page,
   user,
   isAdmin,
+  restricted = false,
   onNavigate,
   onLogout,
 }: {
   page: Page;
   user: AuthUser;
   isAdmin: boolean;
+  restricted?: boolean;
   onNavigate: (page: Page) => void;
   onLogout: () => void;
 }) {
   const initials = user.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
-  const items = isAdmin ? [...navItems, adminNavItem] : navItems;
+  const items = restricted ? navItems.filter((item) => item.id === 'perfil') : isAdmin ? [...navItems, adminNavItem] : navItems;
   return (
     <aside className="sidebar">
       <Logo />
-      <nav className={`main-nav ${isAdmin ? 'admin-nav' : ''}`} aria-label="Navegación principal">
+      <nav className={`main-nav ${isAdmin ? 'admin-nav' : ''} ${restricted ? 'restricted-nav' : ''}`} aria-label="Navegación principal">
         <span className="nav-kicker">MENÚ</span>
         {items.map((item) => {
           const Icon = item.icon;
@@ -730,6 +792,7 @@ function Sidebar({
               type="button"
               key={item.id}
               className={`nav-item ${page === item.id ? 'active' : ''}`}
+              aria-current={page === item.id ? 'page' : undefined}
               onClick={() => onNavigate(item.id)}
             >
               <Icon size={19} strokeWidth={1.8} />
@@ -738,6 +801,7 @@ function Sidebar({
           );
         })}
       </nav>
+      {restricted && <button className="button button-light restricted-access-link" type="button" onClick={() => onNavigate('inicio')}>Volver a activar acceso</button>}
       <div className="sidebar-motivation">
         <div className="motivation-icon"><Zap size={17} /></div>
         <strong>Hazlo medible.</strong>
@@ -766,6 +830,8 @@ function Topbar({
   onStartWorkout,
   workoutActionLabel,
   hasRoutine,
+  exportState,
+  onExportError,
 }: {
   page: Page;
   unit: Unit;
@@ -777,6 +843,8 @@ function Topbar({
   onStartWorkout: () => void;
   workoutActionLabel: string;
   hasRoutine: boolean;
+  exportState?: AppState;
+  onExportError: (message: string) => void;
 }) {
   const firstName = user.name.split(' ')[0] || 'Atleta';
   const greeting = (() => {
@@ -790,6 +858,8 @@ function Topbar({
     rutina: { eyebrow: 'PLAN DE ENTRENAMIENTO', title: 'Mi rutina' },
     calendario: { eyebrow: 'HISTORIAL DE ACTIVIDAD', title: 'Calendario' },
     progreso: { eyebrow: 'DATOS Y EVOLUCIÓN', title: 'Tu progreso' },
+    perfil: { eyebrow: 'TU CUENTA Y PREFERENCIAS', title: 'Mi perfil' },
+    amigos: { eyebrow: 'PROGRESO EN COMPAÑÍA', title: 'Amigos' },
     admin: { eyebrow: 'GESTIÓN PRIVADA', title: 'Cuentas y accesos' },
   };
 
@@ -801,26 +871,26 @@ function Topbar({
         <h1>{titles[page].title}</h1>
       </div>
       <div className="topbar-actions">
-        {page !== 'admin' && hasRoutine && (
+        {page === 'progreso' && exportState && <DataExportControls state={exportState} onError={onExportError} />}
+        {page !== 'admin' && page !== 'perfil' && page !== 'amigos' && hasRoutine && (
           <button className="unit-toggle" type="button" onClick={onToggleUnit}>
             <span className={unit === 'kg' ? 'selected' : ''}>KG</span>
             <span className={unit === 'lb' ? 'selected' : ''}>LB</span>
           </button>
         )}
-        {page === 'admin' ? <span className="admin-mode-pill"><ShieldCheck size={15} /> Panel privado</span> : (
-          <button className="icon-button" type="button" aria-label="Notificaciones" onClick={onNotify}>
+        {page === 'admin' ? <span className="admin-mode-pill"><ShieldCheck size={15} /> Panel privado</span> : page !== 'perfil' && page !== 'amigos' && (
+          <button className="icon-button" type="button" aria-label="Ver solicitudes en Amigos" onClick={onNotify}>
             <Bell size={19} />
-            <i className="notification-dot" />
           </button>
         )}
         <button className="icon-button mobile-logout" type="button" aria-label="Cerrar sesión" title="Cerrar sesión" onClick={onLogout}>
           <LogOut size={18} />
         </button>
-        {page !== 'admin' && <button className="button button-accent quick-start-top" type="button" onClick={onStartWorkout}>
+        {page !== 'admin' && page !== 'perfil' && page !== 'amigos' && <button className="button button-accent quick-start-top" type="button" onClick={onStartWorkout}>
           {hasRoutine ? <Play size={16} fill="currentColor" /> : <Upload size={16} />}
           {workoutActionLabel}
         </button>}
-        {page !== 'admin' && hasRoutine && (
+        {page !== 'admin' && page !== 'perfil' && page !== 'amigos' && hasRoutine && (
           <button className="button button-dark import-top" type="button" onClick={onImport}>
             <Upload size={17} />
             Importar rutina
@@ -856,6 +926,16 @@ function EmptyRoutineState({ page, hasLogs = false, onImport }: { page: Page; ha
       eyebrow: 'AÚN NO HAY REGISTROS',
       title: 'El progreso comienza con tu plan.',
       description: 'No mostraremos estadísticas hasta importar una rutina y completar tus propios entrenamientos.',
+    },
+    perfil: {
+      eyebrow: 'CUENTA Y CONFIGURACIÓN',
+      title: 'Tu perfil de Kyon+.',
+      description: 'Consulta tu acceso y administra tus preferencias de entrenamiento.',
+    },
+    amigos: {
+      eyebrow: 'CONSTANCIA COMPARTIDA',
+      title: 'Tu equipo también cuenta.',
+      description: 'Celebra tus avances, comparte metas y acompaña a tus amigos.',
     },
     admin: {
       eyebrow: 'GESTIÓN PRIVADA',
@@ -1403,24 +1483,20 @@ function MiniMonth({
   );
 }
 
-function WorkoutHistoryModal({ date, logs, onClose }: { date: string; logs: WorkoutLog[]; onClose: () => void }) {
+export function WorkoutHistoryModal({ date, logs, onClose, ownerName, description, returnFocus }: { date: string; logs: WorkoutLog[]; onClose: () => void; ownerName?: string; description?: string; returnFocus?: HTMLElement | null }) {
   useLockBodyScroll();
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  const dialogRef = useRef<HTMLElement>(null);
+  useAccessibleDialog(dialogRef, onClose, returnFocus);
 
   return createPortal(
     <div className="modal-backdrop history-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
+      <section ref={dialogRef} className="history-modal" role="dialog" aria-modal="true" aria-labelledby="history-modal-title" tabIndex={-1}>
         <header className="history-modal-header">
-          <div><span>REGISTRO DEL DÍA</span><h2 id="history-modal-title">{capitalize(esDate.format(fromDateKey(date)))}</h2></div>
-          <button type="button" autoFocus onClick={onClose} aria-label="Cerrar registro"><X size={20} /></button>
+          <div><span>{ownerName ? `COMPARTIDO POR ${ownerName}` : 'REGISTRO DEL DÍA'}</span><h2 id="history-modal-title">{capitalize(esDate.format(fromDateKey(date)))}</h2></div>
+          <button type="button" onClick={onClose} aria-label="Cerrar registro"><X size={20} /></button>
         </header>
         <div className="history-modal-body">
+          {description && <p className="history-shared-description">{description}</p>}
           {logs.map((log) => {
             const completedSets = log.exercises.reduce((sum, exercise) => sum + exercise.sets.filter((set) => set.done).length, 0);
             const totalSets = log.exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0);
@@ -1643,11 +1719,7 @@ function exerciseProgressPoints(logs: WorkoutLog[], exercise: Exercise, unit: Un
     .flatMap((log) => {
       const result = log.exercises.find((entry) => entry.exerciseId === exercise.id || entry.exerciseName === exercise.name);
       if (!result) return [];
-      const best = result.sets.filter((set) => set.done).reduce<SetLog | null>((current, set) => {
-        const weight = convertWeight(set.weight, set.unit, unit);
-        const currentWeight = current ? convertWeight(current.weight, current.unit, unit) : 0;
-        return weight > currentWeight ? set : current;
-      }, null);
+      const best = bestCompletedSet(result.sets, unit);
       if (!best) return [];
       const bestWeight = convertWeight(best.weight, best.unit, unit);
       return [{ label: esShortDate.format(fromDateKey(log.date)), value: Math.round(bestWeight * 10) / 10, detail: `${Math.round(bestWeight * 10) / 10} ${unit} × ${best.reps} reps` }];
@@ -1668,6 +1740,7 @@ function ProgressView({ state, onStart }: { state: AppState; onStart: (day: Rout
   const monthLogs = getMonthLogs(logs, new Date());
   const monthMinutes = monthLogs.reduce((sum, log) => sum + log.duration, 0);
   const previousMonth = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
+  const monthGoal = plannedSessionsInMonth(routine, new Date());
   const previousMinutes = getMonthLogs(logs, previousMonth).reduce((sum, log) => sum + log.duration, 0);
   const timeDelta = previousMinutes ? Math.round(((monthMinutes - previousMinutes) / previousMinutes) * 100) : 0;
   const allCompletedSets = monthLogs.flatMap((log) => log.exercises).flatMap((exercise) => exercise.sets).filter((set) => set.done);
@@ -1721,11 +1794,11 @@ function ProgressView({ state, onStart }: { state: AppState; onStart: (day: Rout
         </section>
         <section className="summary-card">
           <span>SESIONES</span>
-          <strong>{monthLogs.length}{routine.days.length > 0 && <small> / {routine.days.length * 4}</small>}</strong>
+          <strong>{monthLogs.length}{routine.days.length > 0 && <small> / {monthGoal}</small>}</strong>
           {routine.days.length > 0 ? (
             <>
-              <div className="summary-progress"><i style={{ width: `${Math.min(100, (monthLogs.length / Math.max(routine.days.length * 4, 1)) * 100)}%` }} /></div>
-              <p>Objetivo mensual</p>
+              <div className="summary-progress"><i style={{ width: `${Math.min(100, (monthLogs.length / Math.max(monthGoal, 1)) * 100)}%` }} /></div>
+              <p title="Según los días de la rutina activa en este mes.">Objetivo mensual</p>
             </>
           ) : (
             <p>Sesiones este mes</p>
@@ -1753,7 +1826,7 @@ function ProgressView({ state, onStart }: { state: AppState; onStart: (day: Rout
           <div className="chart-controls">
             <label>
               <Dumbbell size={16} />
-              <select value={exerciseId} onChange={(event) => setExerciseId(event.target.value)}>
+              <select aria-label="Ejercicio para consultar el progreso" value={exerciseId} onChange={(event) => setExerciseId(event.target.value)}>
                 {options.map((exercise) => <option key={exercise.id} value={exercise.id}>{exercise.name}</option>)}
               </select>
               <ChevronDown size={15} />
@@ -1775,7 +1848,7 @@ function ProgressView({ state, onStart }: { state: AppState; onStart: (day: Rout
               <div className="best-row" key={exercise.id}>
                 <span className="rank">{String(index + 1).padStart(2, '0')}</span>
                 <div><strong>{exercise.name}</strong><small>Mejor serie registrada</small></div>
-                <b>{best > 0 ? `${best.toFixed(1)} ${unit}` : 'Sin registro'}</b>
+                <b>{exerciseData.length > 0 ? `${best.toFixed(1)} ${unit}` : 'Sin registro'}</b>
                 <TrendingUp size={15} />
               </div>
             );
@@ -1906,22 +1979,20 @@ function AdminUsersView() {
   );
 }
 
-function WorkoutSession({
+export function WorkoutSession({
   active,
   logs,
   unit,
   userEmail,
   onClose,
   onFinish,
-  onToggleUnit,
 }: {
   active: ActiveWorkout;
   logs: WorkoutLog[];
   unit: Unit;
   userEmail: string;
   onClose: () => void;
-  onFinish: (log: WorkoutLog) => void;
-  onToggleUnit: () => void;
+  onFinish: (log: WorkoutLog, returnFocus?: HTMLElement | null) => boolean;
 }) {
   useLockBodyScroll();
   const existingWorkout = logs.find((log) => log.date === active.date && log.routineDayId === active.day.id);
@@ -1944,6 +2015,10 @@ function WorkoutSession({
   const [activeExercise, setActiveExercise] = useState(0);
   const [showExit, setShowExit] = useState(false);
   const [showIncompleteFinish, setShowIncompleteFinish] = useState(false);
+  const exitDialogRef = useRef<HTMLDivElement>(null);
+  const incompleteFinishDialogRef = useRef<HTMLDivElement>(null);
+  useAccessibleDialog(exitDialogRef, () => setShowExit(false), undefined, showExit);
+  useAccessibleDialog(incompleteFinishDialogRef, () => setShowIncompleteFinish(false), undefined, showIncompleteFinish);
   const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>(() => {
     if (restoredDraft) {
       return active.day.exercises.map((exercise) => {
@@ -1952,7 +2027,7 @@ function WorkoutSession({
           ...saved,
           exerciseId: exercise.id,
           exerciseName: exercise.name,
-          sets: saved.sets.map((set) => ({ ...set, weight: displayWeight(set.weight, set.unit, unit), unit })),
+          sets: saved.sets.map((set) => ({ ...set })),
         };
       });
     }
@@ -1961,16 +2036,17 @@ function WorkoutSession({
         ?.exercises.find((entry) => entry.exerciseId === exercise.id || entry.exerciseName === exercise.name)
         ?.sets;
       const previous = existing ?? getLastExerciseSets(logs, exercise, active.date);
+      const exerciseUnit = previous?.[0]?.unit ?? unit;
       return {
         exerciseId: exercise.id,
         exerciseName: exercise.name,
         sets: Array.from({ length: Math.max(exercise.sets, existing?.length ?? 0) }, (_, index) => {
           const previousSet = previous?.[index] ?? previous?.[0];
           return {
-            weight: previousSet ? displayWeight(previousSet.weight, previousSet.unit, unit) : 0,
+            weight: previousSet ? convertWeight(previousSet.weight, previousSet.unit, exerciseUnit) : 0,
             reps: previousSet?.reps ?? 0,
             done: existing ? previousSet?.done ?? false : false,
-            unit,
+            unit: exerciseUnit,
           };
         }),
       };
@@ -2010,6 +2086,7 @@ function WorkoutSession({
   const progress = totalSets ? (completedSets / totalSets) * 100 : 0;
   const exercise = active.day.exercises[activeExercise];
   const currentLog = exerciseLogs[activeExercise];
+  const exerciseUnit = currentLog?.sets[0]?.unit ?? unit;
   const previous = exercise ? getLastExerciseSets(logs, exercise, active.date) : undefined;
   const minutes = String(Math.floor(seconds / 60)).padStart(2, '0');
   const timerSeconds = String(seconds % 60).padStart(2, '0');
@@ -2031,6 +2108,13 @@ function WorkoutSession({
     ));
   }
 
+  function selectExerciseUnit(nextUnit: Unit) {
+    setExerciseLogs(current => current.map((entry, index) => index !== activeExercise ? entry : {
+      ...entry,
+      sets: entry.sets.map(set => ({ ...set, weight: convertWeight(set.weight, set.unit, nextUnit), unit: nextUnit })),
+    }));
+  }
+
   function focusSetInputWithoutScroll(event: PointerEvent<HTMLInputElement>) {
     const activeInput = document.activeElement;
     if (!(activeInput instanceof HTMLInputElement) || activeInput === event.currentTarget || !activeInput.closest('.set-table')) return;
@@ -2046,19 +2130,18 @@ function WorkoutSession({
       return {
         ...entry,
         sets: [...entry.sets, {
-          weight: last ? displayWeight(last.weight, last.unit, unit) : 0,
+          weight: last ? convertWeight(last.weight, last.unit, exerciseUnit) : 0,
           reps: last?.reps ?? parseTargetReps(exercise.reps),
           done: false,
-          unit,
+          unit: exerciseUnit,
         }],
       };
     }));
   }
 
   function finish() {
-    setShowIncompleteFinish(false);
-    clearWorkoutDraft(userEmail);
-    onFinish({
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const saved = onFinish({
       id: existingWorkout?.id ?? uid('workout'),
       date: active.date,
       routineDayId: active.day.id,
@@ -2066,7 +2149,8 @@ function WorkoutSession({
       duration: Math.max(existingWorkout?.duration ?? 0, Math.max(1, Math.round(seconds / 60))),
       exercises: exerciseLogs,
       completed: true,
-    });
+    }, trigger);
+    if (saved) setShowIncompleteFinish(false);
   }
 
   function requestFinish() {
@@ -2084,12 +2168,8 @@ function WorkoutSession({
           <div className="workout-brand"><Logo compact /><span>ENTRENAMIENTO ACTIVO</span></div>
           <div className="workout-timer"><Clock3 size={17} /><strong>{minutes}:{timerSeconds}</strong></div>
           <div className="workout-header-actions">
-            <button className="unit-toggle workout-unit-toggle" type="button" onClick={onToggleUnit} aria-label={`Cambiar peso a ${unit === 'kg' ? 'libras' : 'kilogramos'}`} title={`Usar ${unit === 'kg' ? 'libras' : 'kilogramos'}`}>
-              <span className={unit === 'kg' ? 'selected' : ''}>KG</span>
-              <span className={unit === 'lb' ? 'selected' : ''}>LB</span>
-            </button>
             <button className="workout-header-finish" type="button" onClick={requestFinish} title={pendingSets > 0 ? `Finalizar con ${pendingSets} ${pendingSets === 1 ? 'serie pendiente' : 'series pendientes'}` : 'Finalizar entrenamiento'}><Check size={17} /> <span>Finalizar</span></button>
-            <button className="workout-close" type="button" onClick={() => setShowExit(true)}><X size={21} /> <span>Salir</span></button>
+            <button className="workout-close" type="button" aria-label="Salir del entrenamiento" title="Salir del entrenamiento" onClick={() => setShowExit(true)}><X size={21} /> <span>Salir</span></button>
           </div>
         </header>
         <div className="workout-progress"><i style={{ width: `${progress}%` }} /></div>
@@ -2131,26 +2211,32 @@ function WorkoutSession({
               <div className="exercise-target"><Target size={19} /><div><span>OBJETIVO</span><strong>{exercise.sets} × {exercise.reps}</strong></div></div>
             </div>
 
+            <div className="exercise-unit-controls" role="group" aria-label={`Unidad de peso para ${exercise.name}`}>
+              <span>Unidad de este ejercicio</span>
+              {(['kg', 'lb'] as const).map(value => <button key={value} type="button" className={exerciseUnit === value ? 'selected' : ''} aria-pressed={exerciseUnit === value} onClick={() => selectExerciseUnit(value)}>{value === 'kg' ? 'KG' : 'LB'}</button>)}
+              <small>No cambia los demás ejercicios. Convierte el peso ya registrado.</small>
+            </div>
+
             <div className="set-table">
-              <div className="set-table-head"><span>SERIE</span><span>ANTERIOR</span><span>PESO ({unit.toUpperCase()})</span><span>REPS</span><span>LISTA</span></div>
+              <div className="set-table-head"><span>SERIE</span><span>ANTERIOR</span><span>PESO ({exerciseUnit.toUpperCase()})</span><span>REPS</span><span>LISTA</span></div>
               {currentLog.sets.map((set, index) => {
                 const previousSet = previous?.[index];
                 return (
                   <div className={`set-row ${set.done ? 'done' : ''}`} key={index}>
                     <span className="set-number">{index + 1}</span>
-                    <span className="previous-set">{previousSet ? `${displayWeight(previousSet.weight, previousSet.unit, unit)} × ${previousSet.reps}` : '—'}</span>
+                    <span className="previous-set">{previousSet ? `${displayWeight(previousSet.weight, previousSet.unit, exerciseUnit)} × ${previousSet.reps}` : '—'}</span>
                     <label>
                       <input
                         type="number"
                         min="0"
                         step="0.5"
-                        value={displayWeight(set.weight, set.unit, unit) || ''}
+                        value={displayWeight(set.weight, set.unit, exerciseUnit) || ''}
                         placeholder="0"
                         onPointerDown={focusSetInputWithoutScroll}
-                        onChange={(event) => updateSet(index, { weight: Number(event.target.value), unit })}
+                        onChange={(event) => updateSet(index, { weight: Number(event.target.value), unit: exerciseUnit })}
                         aria-label={`Peso de la serie ${index + 1}`}
                       />
-                      <small>{unit}</small>
+                      <small>{exerciseUnit}</small>
                     </label>
                     <label>
                       <input
@@ -2164,10 +2250,10 @@ function WorkoutSession({
                       />
                       <small>reps</small>
                     </label>
-                    <button type="button" className="set-check" onClick={() => updateSet(index, { done: !set.done })} aria-label={`Completar serie ${index + 1}`}>
+                    <button type="button" className="set-check" onClick={() => updateSet(index, { done: !set.done })} aria-label={`Completar serie ${index + 1}`} aria-pressed={set.done}>
                       <Check size={19} />
                     </button>
-                    {previousSet && <span className="previous-hint"><TrendingUp size={10} /> Anterior: {displayWeight(previousSet.weight, previousSet.unit, unit)} {unit} × {previousSet.reps} — supera</span>}
+                    {previousSet && <span className="previous-hint"><TrendingUp size={10} /> Anterior: {displayWeight(previousSet.weight, previousSet.unit, exerciseUnit)} {exerciseUnit} × {previousSet.reps} — supera</span>}
                   </div>
                 );
               })}
@@ -2195,12 +2281,12 @@ function WorkoutSession({
 
       {showExit && (
         <div className="confirm-overlay" onMouseDown={(event) => event.target === event.currentTarget && setShowExit(false)}>
-          <div className="confirm-dialog">
+          <div ref={exitDialogRef} className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="workout-exit-title" aria-describedby="workout-exit-description" tabIndex={-1}>
             <span><Clock3 size={24} /></span>
-            <h3>¿Salir del entrenamiento?</h3>
-            <p>Tu avance se guarda automáticamente y el tiempo seguirá corriendo hasta que finalices o descartes la sesión.</p>
+            <h3 id="workout-exit-title">¿Salir del entrenamiento?</h3>
+            <p id="workout-exit-description">Tu avance se guarda automáticamente y el tiempo seguirá corriendo hasta que finalices o descartes la sesión.</p>
             <div className="confirm-actions">
-              <button className="button button-dark" type="button" onClick={() => setShowExit(false)}>Continuar</button>
+              <button className="button button-dark" type="button" data-dialog-initial-focus onClick={() => setShowExit(false)}>Continuar</button>
               <button className="button button-light" type="button" onClick={onClose}>Guardar y salir</button>
             </div>
             <button className="discard-session" type="button" onClick={() => { clearWorkoutDraft(userEmail); onClose(); }}>Descartar esta sesión</button>
@@ -2210,12 +2296,12 @@ function WorkoutSession({
 
       {showIncompleteFinish && (
         <div className="confirm-overlay" onMouseDown={(event) => event.target === event.currentTarget && setShowIncompleteFinish(false)}>
-          <div className="confirm-dialog incomplete-finish-dialog" role="dialog" aria-modal="true" aria-labelledby="incomplete-finish-title" aria-describedby="incomplete-finish-description">
+          <div ref={incompleteFinishDialogRef} className="confirm-dialog incomplete-finish-dialog" role="dialog" aria-modal="true" aria-labelledby="incomplete-finish-title" aria-describedby="incomplete-finish-description" tabIndex={-1}>
             <span><ListChecks size={24} /></span>
             <h3 id="incomplete-finish-title">¿Finalizar con series pendientes?</h3>
             <p id="incomplete-finish-description">Tienes {pendingSets} {pendingSets === 1 ? 'serie sin marcar como completada' : 'series sin marcar como completadas'}. Si finalizas ahora, el entrenamiento se guardará con esas series pendientes.</p>
             <div className="confirm-actions">
-              <button className="button button-dark" type="button" onClick={() => setShowIncompleteFinish(false)}>Seguir entrenando</button>
+              <button className="button button-dark" type="button" data-dialog-initial-focus onClick={() => setShowIncompleteFinish(false)}>Seguir entrenando</button>
               <button className="button button-light" type="button" onClick={finish}>Finalizar igualmente</button>
             </div>
           </div>
@@ -2235,6 +2321,8 @@ function RoutineBuilderModal({
   onSave: (routine: Routine) => void;
 }) {
   useLockBodyScroll();
+  const dialogRef = useRef<HTMLElement>(null);
+  useAccessibleDialog(dialogRef, onClose);
   const [stage, setStage] = useState<'upload' | 'parsing' | 'review' | 'error'>(initialRoutine ? 'review' : 'upload');
   const [draft, setDraft] = useState<Routine | null>(initialRoutine ? cloneRoutine(initialRoutine) : null);
   const [fileName, setFileName] = useState(initialRoutine?.sourceName ?? '');
@@ -2352,7 +2440,7 @@ function RoutineBuilderModal({
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className={`routine-modal ${stage === 'review' ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby="routine-modal-title">
+      <section ref={dialogRef} className={`routine-modal ${stage === 'review' ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby="routine-modal-title" tabIndex={-1}>
         <div className="modal-header">
           <div>
             <span>{initialRoutine ? 'CONFIGURAR PLAN' : 'IMPORTAR RUTINA'}</span>
@@ -2457,17 +2545,12 @@ function DeleteRoutineModal({
   onConfirm: () => void;
 }) {
   useLockBodyScroll();
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  const dialogRef = useRef<HTMLElement>(null);
+  useAccessibleDialog(dialogRef, onClose);
 
   return (
     <div className="modal-backdrop delete-routine-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="delete-routine-modal" role="dialog" aria-modal="true" aria-labelledby="delete-routine-title" aria-describedby="delete-routine-description">
+      <section ref={dialogRef} className="delete-routine-modal" role="dialog" aria-modal="true" aria-labelledby="delete-routine-title" aria-describedby="delete-routine-description" tabIndex={-1}>
         <button className="delete-routine-close" type="button" onClick={onClose} aria-label="Cerrar"><X size={19} /></button>
         <div className="delete-routine-icon"><Trash2 size={24} /></div>
         <span>ELIMINAR RUTINA</span>
@@ -2475,7 +2558,7 @@ function DeleteRoutineModal({
         <p id="delete-routine-description">Se eliminará la rutina <strong>{routineName}</strong>, pero tus entrenamientos registrados seguirán guardados en el calendario.</p>
         {hasPausedSession && <p className="delete-paused-warning">Tienes una sesión en pausa: se descartará al borrar la rutina.</p>}
         <div className="delete-routine-actions">
-          <button className="button button-light" type="button" onClick={onClose}>Cancelar</button>
+          <button className="button button-light" type="button" data-dialog-initial-focus onClick={onClose}>Cancelar</button>
           <button className="button button-danger" type="button" onClick={onConfirm}><Trash2 size={16} /> Borrar rutina</button>
         </div>
       </section>
@@ -2483,15 +2566,17 @@ function DeleteRoutineModal({
   );
 }
 
-function CompletionModal({ log, onClose }: { log: WorkoutLog; onClose: () => void }) {
+function CompletionModal({ log, onClose, onCommunity, returnFocus }: { log: WorkoutLog; onClose: () => void; onCommunity?: () => void; returnFocus?: HTMLElement | null }) {
   useLockBodyScroll();
+  const dialogRef = useRef<HTMLElement>(null);
+  useAccessibleDialog(dialogRef, undefined, returnFocus);
   const sets = log.exercises.reduce((sum, exercise) => sum + exercise.sets.filter((set) => set.done).length, 0);
   return (
     <div className="modal-backdrop completion-backdrop">
-      <section className="completion-modal">
+      <section ref={dialogRef} className="completion-modal" role="dialog" aria-modal="true" aria-labelledby="completion-modal-title" tabIndex={-1}>
         <div className="completion-burst"><Check size={33} strokeWidth={2.5} /></div>
         <span>ENTRENAMIENTO COMPLETADO</span>
-        <h2>Trabajo hecho.</h2>
+        <h2 id="completion-modal-title">Trabajo hecho.</h2>
         <p>Cada sesión registrada hace visible tu progreso. Sigue así.</p>
         <div className="completion-stats">
           <div><Clock3 size={18} /><strong>{log.duration}</strong><span>minutos</span></div>
@@ -2499,6 +2584,7 @@ function CompletionModal({ log, onClose }: { log: WorkoutLog; onClose: () => voi
           <div><ListChecks size={18} /><strong>{log.exercises.length}</strong><span>ejercicios</span></div>
         </div>
         <button className="button button-dark full-button" type="button" onClick={onClose}>Volver al inicio <ArrowRight size={17} /></button>
+        {onCommunity && <button className="button button-light full-button completion-community" type="button" onClick={onCommunity}><Users size={17} /> Ver insignias y compartir</button>}
       </section>
     </div>
   );
@@ -2577,35 +2663,84 @@ function MigrationScreen({
 }
 
 function Toast({ message }: { message: string }) {
-  return <div className="toast"><span><Check size={14} /></span>{message}</div>;
+  return <div className="toast" role="status" aria-live="polite"><span><Check size={14} /></span>{message}</div>;
 }
 
 export default function App() {
-  const initialState = createInitialState();
+  const [initialPreview] = useState(readSessionPreview);
+  const initialState = initialPreview?.state ?? createInitialState();
   const [state, setState] = useState<AppState>(initialState);
   const stateRef = useRef(state);
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [access, setAccess] = useState<AccessInfo | null>(null);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(initialPreview?.user ?? null);
+  const [access, setAccess] = useState<AccessInfo | null>(initialPreview?.access ?? null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [dataStatus, setDataStatus] = useState<'idle' | 'loading' | 'migration' | 'ready' | 'error'>('idle');
+  const [dataStatus, setDataStatus] = useState<'idle' | 'loading' | 'migration' | 'ready' | 'error'>(initialPreview ? 'loading' : 'idle');
+  const serverVerifiedRef = useRef(false);
   const [migrationCandidate, setMigrationCandidate] = useState<AppState | null>(null);
   const [migrationBusy, setMigrationBusy] = useState(false);
+  const migrationBusyRef = useRef(false);
   const [syncError, setSyncError] = useState('');
-  const syncQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const pendingMutationsRef = useRef(0);
-  const syncFailedRef = useRef(false);
-  const latestRemoteStateRef = useRef<AppState | null>(null);
-  const syncEpochRef = useRef(0);
-  const mutationsIssuedRef = useRef(0);
-  const [page, setPage] = useState<Page>('inicio');
+  const sessionEpochRef = useRef(new SessionEpoch());
+  const authQueueRef = useRef(new AuthRequestQueue());
+  const authUserRef = useRef<AuthUser | null>(initialPreview?.user ?? null);
+  const syncSessionRef = useRef<DurableSyncSession | null>(null);
+  const hydrationSequenceRef = useRef(0);
+  const [page, setPage] = useState<Page>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('view') === 'amigos' ? 'amigos' : 'inicio');
   const [builderMode, setBuilderMode] = useState<'import' | 'edit' | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
+  const activeWorkoutRef = useRef<ActiveWorkout | null>(null);
   const [completedLog, setCompletedLog] = useState<WorkoutLog | null>(null);
+  const [sharedWorkout, setSharedWorkout] = useState<{ detail: SocialWorkoutDetail; returnFocus: HTMLElement | null } | null>(null);
+  const completionTriggerRef = useRef<HTMLElement | null>(null);
   const [toast, setToast] = useState('');
   const [deleteRoutineOpen, setDeleteRoutineOpen] = useState(false);
 
+  function setWorkout(next: ActiveWorkout | null) {
+    activeWorkoutRef.current = next;
+    setActiveWorkout(next);
+  }
+
+  function invalidateSyncSession() {
+    const token = sessionEpochRef.current.advance();
+    syncSessionRef.current?.close();
+    syncSessionRef.current = null;
+    hydrationSequenceRef.current += 1;
+    return token;
+  }
+
+  function isCurrentSession(user: AuthUser, token: SessionToken) {
+    return sessionEpochRef.current.isCurrent(token) &&
+      normalizeUserEmail(authUserRef.current?.email ?? '') === normalizeUserEmail(user.email);
+  }
+
+  function clearLocalSession() {
+    const token = invalidateSyncSession();
+    clearLegacyAuth();
+    clearSessionPreview();
+    serverVerifiedRef.current = false;
+    authUserRef.current = null;
+    setAuthUser(null);
+    setAccess(null);
+    setBuilderMode(null);
+    setDeleteRoutineOpen(false);
+    setCompletedLog(null);
+    setSharedWorkout(null);
+    setWorkout(null);
+    setPage('inicio');
+    const emptyState = createInitialState();
+    stateRef.current = emptyState;
+    setState(emptyState);
+    setMigrationCandidate(null);
+    setMigrationBusy(false);
+    migrationBusyRef.current = false;
+    setDataStatus('idle');
+    setSyncError('');
+    setToast('');
+    return token;
+  }
+
   function lockExpiredAccess(nextAccess?: AccessInfo) {
-    syncEpochRef.current += 1;
+    invalidateSyncSession();
     setAccess(nextAccess ?? {
       status: 'expired',
       trialEndsAt: access?.trialEndsAt ?? null,
@@ -2615,30 +2750,54 @@ export default function App() {
     setBuilderMode(null);
     setDeleteRoutineOpen(false);
     setCompletedLog(null);
-    setActiveWorkout(null);
+    setSharedWorkout(null);
+    setWorkout(null);
+    setMigrationBusy(false);
+    if (authUserRef.current && nextAccess) saveSessionPreview(authUserRef.current, nextAccess);
+    migrationBusyRef.current = false;
     setDataStatus('idle');
   }
 
-  function handleAccessError(reason: unknown) {
-    if (!(reason instanceof ApiError) || reason.status !== 402) return false;
-    lockExpiredAccess(reason.access);
-    return true;
+  function handleAccessError(reason: unknown, user: AuthUser, token: SessionToken) {
+    if (!isCurrentSession(user, token) || !(reason instanceof ApiError)) return false;
+    if (reason.status === 402) {
+      lockExpiredAccess(reason.access);
+      return true;
+    }
+    if (reason.status === 401 || reason.code === 'SESSION_OWNER_MISMATCH') {
+      // The cookie may belong to a different tab's user: do not DELETE that session.
+      clearLocalSession();
+      return true;
+    }
+    return false;
   }
 
   useEffect(() => {
     let active = true;
-    void getRemoteSession()
+    const token = sessionEpochRef.current.capture();
+    void getRemoteSession({ signal: token.signal })
       .then(async ({ user, access: nextAccess }) => {
-        if (!active) return;
+        if (!active || !sessionEpochRef.current.isCurrent(token)) return;
+        const confirmedToken = authUserRef.current && normalizeUserEmail(authUserRef.current.email) !== normalizeUserEmail(user.email) ? clearLocalSession() : token;
+        serverVerifiedRef.current = true;
+        saveSessionPreview(user, nextAccess);
+        authUserRef.current = user;
         setAuthUser(user);
         setAccess(nextAccess);
-        if (nextAccess.status !== 'expired') await hydrateUser(user);
+        setAuthChecked(true);
+        if (nextAccess.status !== 'expired') await hydrateUser(user, confirmedToken);
       })
       .catch((reason) => {
-        if (active && !(reason instanceof ApiError && reason.status === 401)) setSyncError('No fue posible comprobar la sesión.');
+        if (!active || !sessionEpochRef.current.isCurrent(token)) return;
+        clearLocalSession();
+        setAuthChecked(true);
+        if (!(reason instanceof ApiError && reason.status === 401)) setSyncError('No fue posible comprobar la sesión.');
       })
-      .finally(() => active && setAuthChecked(true));
-    return () => { active = false; };
+      .finally(() => active && sessionEpochRef.current.isCurrent(token) && setAuthChecked(true));
+    return () => {
+      active = false;
+      invalidateSyncSession();
+    };
   }, []);
 
   useEffect(() => {
@@ -2649,16 +2808,34 @@ export default function App() {
 
   useEffect(() => {
     if (access?.status !== 'trial' || !access.trialEndsAt) return;
+    const user = authUserRef.current;
+    const token = sessionEpochRef.current.capture();
+    if (!user) return;
     const remaining = new Date(access.trialEndsAt).getTime() - Date.now();
     if (remaining <= 0) {
-      lockExpiredAccess({ ...access, status: 'expired', trialDaysRemaining: 0 });
+      if (isCurrentSession(user, token)) lockExpiredAccess({ ...access, status: 'expired', trialDaysRemaining: 0 });
       return;
     }
     const timer = window.setTimeout(() => {
-      lockExpiredAccess({ ...access, status: 'expired', trialDaysRemaining: 0 });
+      if (isCurrentSession(user, token)) lockExpiredAccess({ ...access, status: 'expired', trialDaysRemaining: 0 });
     }, remaining + 250);
     return () => window.clearTimeout(timer);
-  }, [access]);
+  }, [access, authUser?.email]);
+
+  useEffect(() => {
+    const user = authUserRef.current;
+    if (!user || access?.status === 'expired') return;
+    const token = sessionEpochRef.current.capture();
+    const reconnect = () => {
+      if (isCurrentSession(user, token)) void hydrateUser(user, token);
+    };
+    window.addEventListener('online', reconnect);
+    window.addEventListener('focus', reconnect);
+    return () => {
+      window.removeEventListener('online', reconnect);
+      window.removeEventListener('focus', reconnect);
+    };
+  }, [authUser?.email, access?.status]);
 
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
@@ -2667,25 +2844,67 @@ export default function App() {
   function adoptState(user: AuthUser, nextState: AppState) {
     stateRef.current = nextState;
     setState(nextState);
-    saveState(nextState, stateCacheKey(user.email));
+    if (!saveState(nextState, stateCacheKey(user.email))) {
+      setToast('La cola local conserva tus datos, pero no se pudo actualizar la caché secundaria.');
+    }
   }
 
   function restoreWorkoutDraft(user: AuthUser, nextState: AppState) {
     const saved = readWorkoutDraft(user.email);
     const day = saved ? nextState.routine.days.find((routineDay) => routineDay.id === saved.routineDayId) : undefined;
-    setActiveWorkout(saved && day ? { day, date: saved.date } : null);
+    if (!activeWorkoutRef.current) setWorkout(saved && day ? { day, date: saved.date } : null);
   }
 
-  async function hydrateUser(user: AuthUser) {
-    const epoch = ++syncEpochRef.current;
-    const issuedAtFetch = mutationsIssuedRef.current;
+  function createSyncSession(user: AuthUser, token: SessionToken, cached: AppState | null) {
+    const session: DurableSyncSession = new DurableSyncSession({
+      userEmail: user.email,
+      storage: localStorage,
+      initialState: cached ?? undefined,
+      isCurrent: () => syncSessionRef.current === session && isCurrentSession(user, token),
+      send: async (mutation, context) => {
+        const remote = await mutateRemoteState(mutation, context);
+        if (!remote.state || remote.revision === null) throw new ApiResponseError();
+        return { state: remote.state, revision: remote.revision, userEmail: remote.userEmail };
+      },
+      onState: (nextState) => {
+        if (isCurrentSession(user, token)) {
+          adoptState(user, nextState);
+          if (session.pendingCount === 0) setSyncError('');
+        }
+      },
+      onError: (reason) => {
+        if (!isCurrentSession(user, token) || handleAccessError(reason, user, token)) return;
+        const message = reason instanceof Error ? reason.message : 'No fue posible sincronizar.';
+        setSyncError(message);
+        setToast(`${message} Los cambios pendientes se conservan en este dispositivo.`);
+      },
+      shouldRetry: (reason) => !(reason instanceof ApiError && reason.status < 500),
+    });
+    syncSessionRef.current = session;
+    return session;
+  }
+
+  async function hydrateUser(user: AuthUser, token = sessionEpochRef.current.capture()) {
+    if (!serverVerifiedRef.current || !isCurrentSession(user, token)) return;
+    const sequence = ++hydrationSequenceRef.current;
+    const current = () => isCurrentSession(user, token) && sequence === hydrationSequenceRef.current;
     const cached = readStoredState(stateCacheKey(user.email));
-    // Show cached data instantly so login never blocks on the network. The
-    // remote fetch below only reconciles quietly in the background.
-    if (cached) {
-      stateRef.current = cached;
-      setState(cached);
-      restoreWorkoutDraft(user, cached);
+    const newSession = syncSessionRef.current === null;
+    let session: DurableSyncSession;
+    try {
+      session = syncSessionRef.current ?? createSyncSession(user, token, cached);
+    } catch (reason) {
+      if (!current()) return;
+      setSyncError(reason instanceof Error ? reason.message : 'No fue posible recuperar la cola local.');
+      setDataStatus('error');
+      return;
+    }
+    const hasCachedState = !!cached || session.restoredFromStorage || session.revision !== null || session.pendingCount > 0;
+    // The outbox, not the secondary cache, is authoritative for unacknowledged work.
+    if (hasCachedState) {
+      stateRef.current = session.state;
+      setState(session.state);
+      if (newSession) restoreWorkoutDraft(user, session.state);
       setMigrationCandidate(null);
       setDataStatus('ready');
     } else {
@@ -2693,55 +2912,64 @@ export default function App() {
     }
     setSyncError('');
 
-    function settleRemote(nextState: AppState | null) {
-      if (epoch !== syncEpochRef.current) return;
-      if (nextState && mutationsIssuedRef.current === issuedAtFetch) adoptState(user, nextState);
-      if (!cached) restoreWorkoutDraft(user, stateRef.current);
+    function settleRemote(remote: SyncRemoteState) {
+      if (!current()) return;
+      session.reconcile(remote);
+      if (newSession && !hasCachedState) restoreWorkoutDraft(user, session.state);
       setMigrationCandidate(null);
       setDataStatus('ready');
     }
 
-    let remoteState: AppState | null;
     try {
-      remoteState = (await getRemoteState()).state;
+      const remote = await getRemoteState({ userEmail: user.email, signal: token.signal });
+      if (!current()) return;
+      if (remote.state && remote.revision !== null) {
+        if (newSession && cached && !session.restoredFromStorage && JSON.stringify(cached) !== JSON.stringify(remote.state)) {
+          // Pre-outbox caches cannot tell unsent changes from stale data. Keep the original for recovery.
+          saveMigrationBackup(localStorage, user.email, cached);
+        }
+        settleRemote({ state: remote.state, revision: remote.revision, userEmail: remote.userEmail });
+        return;
+      }
     } catch (reason) {
-      if (epoch !== syncEpochRef.current) return;
-      if (handleAccessError(reason)) return;
-      if (cached) {
-        setToast('No se pudo sincronizar. Revisa tu conexión.');
+      if (!current()) return;
+      if (handleAccessError(reason, user, token)) return;
+      if (hasCachedState) {
+        setSyncError(reason instanceof Error ? reason.message : 'No fue posible sincronizar.');
+        setToast('Sin conexión de sincronización. Los cambios pendientes se conservan localmente.');
         return;
       }
       setSyncError(reason instanceof Error ? reason.message : 'No fue posible cargar tus datos.');
       setDataStatus('error');
       return;
     }
-    if (epoch !== syncEpochRef.current) return;
-    if (remoteState) {
-      settleRemote(remoteState);
-      return;
-    }
+    if (!current()) return;
     const candidate = user.email === AARON_EMAIL
-      ? readStoredState() ?? cached ?? createInitialState()
-      : cached ?? createInitialState();
+      ? readStoredState() ?? session.state
+      : session.state;
     const hasLocalData = candidate.routine.days.length > 0 || candidate.logs.length > 0;
-    if (!hasLocalData) {
+    if (!hasLocalData && session.pendingCount === 0) {
       try {
-        const bootstrapped = await bootstrapRemoteState(candidate);
-        if (epoch !== syncEpochRef.current) return;
-        if (!bootstrapped.state) throw new Error('MongoDB no devolvió el estado migrado.');
-        settleRemote(bootstrapped.state);
+        const bootstrapped = await bootstrapRemoteState(candidate, { userEmail: user.email, signal: token.signal });
+        if (!current()) return;
+        if (!bootstrapped.state || bootstrapped.revision === null) throw new ApiResponseError();
+        settleRemote({ state: bootstrapped.state, revision: bootstrapped.revision, userEmail: bootstrapped.userEmail });
       } catch (reason) {
-        if (epoch !== syncEpochRef.current) return;
-        if (handleAccessError(reason)) return;
+        if (!current()) return;
+        if (handleAccessError(reason, user, token)) return;
         if (reason instanceof ApiError && reason.status === 409) {
-          const refetched = await getRemoteState().catch(() => null);
-          if (epoch !== syncEpochRef.current) return;
-          if (refetched?.state) {
-            settleRemote(refetched.state);
-            return;
+          try {
+            const refetched = await getRemoteState({ userEmail: user.email, signal: token.signal });
+            if (!current()) return;
+            if (refetched.state && refetched.revision !== null) {
+              settleRemote({ state: refetched.state, revision: refetched.revision, userEmail: refetched.userEmail });
+              return;
+            }
+          } catch (refetchError) {
+            if (!current() || handleAccessError(refetchError, user, token)) return;
           }
         }
-        if (cached) {
+        if (hasCachedState) {
           setToast('No se pudo sincronizar. Revisa tu conexión.');
           return;
         }
@@ -2755,97 +2983,88 @@ export default function App() {
   }
 
   async function migrateLocalState() {
-    if (!authUser || !migrationCandidate) return;
+    const user = authUserRef.current;
+    const token = sessionEpochRef.current.capture();
+    const session = syncSessionRef.current;
+    if (!user || !migrationCandidate || !session || migrationBusyRef.current || !isCurrentSession(user, token)) return;
+    const current = () => isCurrentSession(user, token) && syncSessionRef.current === session;
     setMigrationBusy(true);
+    migrationBusyRef.current = true;
     setSyncError('');
     try {
-      const remote = await bootstrapRemoteState(migrationCandidate);
-      if (!remote.state) throw new Error('MongoDB no devolvió el estado migrado.');
-      adoptState(authUser, remote.state);
-      restoreWorkoutDraft(authUser, remote.state);
+      saveMigrationBackup(localStorage, user.email, migrationCandidate);
+      const remote = await bootstrapRemoteState(migrationCandidate, { userEmail: user.email, signal: token.signal });
+      if (!current()) return;
+      if (!remote.state || remote.revision === null) throw new ApiResponseError();
+      session.reconcile({ state: remote.state, revision: remote.revision, userEmail: remote.userEmail });
+      restoreWorkoutDraft(user, session.state);
       setMigrationCandidate(null);
       setDataStatus('ready');
       setToast('Datos sincronizados correctamente');
     } catch (reason) {
-      if (handleAccessError(reason)) return;
+      if (!current() || handleAccessError(reason, user, token)) return;
       if (reason instanceof ApiError && reason.status === 409) {
-        const remote = await getRemoteState().catch(() => null);
-        if (remote?.state) {
-          adoptState(authUser, remote.state);
-          restoreWorkoutDraft(authUser, remote.state);
-          setMigrationCandidate(null);
-          setDataStatus('ready');
-          setToast('Se cargaron los datos que ya estaban sincronizados');
+        try {
+          const remote = await getRemoteState({ userEmail: user.email, signal: token.signal });
+          if (!current()) return;
+          if (remote.state && remote.revision !== null) {
+            session.reconcile({ state: remote.state, revision: remote.revision, userEmail: remote.userEmail });
+            restoreWorkoutDraft(user, session.state);
+            setMigrationCandidate(null);
+            setDataStatus('ready');
+            setToast('Se cargaron los datos sincronizados. La copia local original quedó respaldada.');
+            return;
+          }
+        } catch (refetchError) {
+          if (!current() || handleAccessError(refetchError, user, token)) return;
+          setSyncError(refetchError instanceof Error ? refetchError.message : 'No fue posible comprobar la migración.');
           return;
         }
       }
       setSyncError(reason instanceof Error ? reason.message : 'No fue posible migrar los datos.');
     } finally {
-      setMigrationBusy(false);
+      if (current()) {
+        migrationBusyRef.current = false;
+        setMigrationBusy(false);
+      }
     }
   }
 
-  function queueRemoteMutation(mutation: Parameters<typeof mutateRemoteState>[0]) {
-    if (!authUser) return;
-    const user = authUser;
-    if (pendingMutationsRef.current === 0) {
-      syncFailedRef.current = false;
-      latestRemoteStateRef.current = null;
+  function commitState(mutation: Parameters<typeof mutateRemoteState>[0]) {
+    const user = authUserRef.current;
+    const session = syncSessionRef.current;
+    if (!user || !authUser || normalizeUserEmail(user.email) !== normalizeUserEmail(authUser.email) ||
+      access?.status === 'expired' || !session || dataStatus !== 'ready') {
+      setToast('Espera a que tus datos estén listos antes de guardar cambios.');
+      return false;
     }
-    pendingMutationsRef.current += 1;
-    syncQueueRef.current = syncQueueRef.current
-      .then(async () => {
-        let lastError: unknown;
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-          try {
-            const remote = await mutateRemoteState(mutation);
-            latestRemoteStateRef.current = remote.state;
-            return;
-          } catch (reason) {
-            lastError = reason;
-            if (reason instanceof ApiError && reason.status < 500) break;
-            await new Promise((resolve) => window.setTimeout(resolve, 450 * (attempt + 1)));
-          }
-        }
-        throw lastError;
-      })
-      .catch((reason) => {
-        syncFailedRef.current = true;
-        if (handleAccessError(reason)) return;
-        setToast(reason instanceof Error ? reason.message : 'El cambio quedó guardado solo en este dispositivo.');
-      })
-      .finally(() => {
-        pendingMutationsRef.current -= 1;
-        if (pendingMutationsRef.current === 0 && !syncFailedRef.current && latestRemoteStateRef.current) {
-          adoptState(user, latestRemoteStateRef.current);
-        }
-      });
-  }
-
-  function commitState(nextState: AppState, mutation: Parameters<typeof mutateRemoteState>[0]) {
-    if (!authUser || access?.status === 'expired') return;
-    mutationsIssuedRef.current += 1;
-    adoptState(authUser, nextState);
-    queueRemoteMutation(mutation);
+    try {
+      return session.enqueue(mutation);
+    } catch (reason) {
+      setToast(reason instanceof Error ? reason.message : 'No se pudo guardar el cambio localmente.');
+      return false;
+    }
   }
 
   function startWorkout(day: RoutineDay, date = new Date()) {
-    setActiveWorkout({ day, date: localDateKey(date) });
+    if (dataStatus !== 'ready') {
+      setToast('Espera a que tus datos estén listos antes de iniciar el entrenamiento.');
+      return;
+    }
+    setWorkout({ day, date: localDateKey(date) });
   }
 
-  function finishWorkout(log: WorkoutLog) {
-    const current = stateRef.current;
-    const nextState = {
-      ...current,
-      logs: [...current.logs.filter((entry) => !(entry.date === log.date && entry.routineDayId === log.routineDayId)), log],
-    };
-    commitState(nextState, createMutation({ type: 'upsertWorkout', log }));
-    setActiveWorkout(null);
+  function finishWorkout(log: WorkoutLog, returnFocus?: HTMLElement | null) {
+    if (!commitState(createMutation({ type: 'upsertWorkout', log }))) return false;
+    if (authUser) clearWorkoutDraft(authUser.email);
+    completionTriggerRef.current = returnFocus ?? null;
+    setWorkout(null);
     setCompletedLog(log);
+    return true;
   }
 
   function saveRoutine(routine: Routine) {
-    commitState({ ...stateRef.current, routine }, createMutation({ type: 'setRoutine', routine }));
+    if (!commitState(createMutation({ type: 'setRoutine', routine }))) return;
     setBuilderMode(null);
     setToast('Rutina guardada correctamente');
     setPage('rutina');
@@ -2856,73 +3075,143 @@ export default function App() {
   }
 
   function deleteRoutine() {
-    const emptyState = createInitialState();
+    if (!commitState(createMutation({ type: 'deleteRoutine' }))) return;
     if (authUser) clearWorkoutDraft(authUser.email);
-    commitState({ ...stateRef.current, routine: emptyState.routine }, createMutation({ type: 'deleteRoutine' }));
     setBuilderMode(null);
     setDeleteRoutineOpen(false);
     setCompletedLog(null);
-    setActiveWorkout(null);
+    setWorkout(null);
     setPage('inicio');
     setToast('Rutina eliminada; el historial se conservó');
   }
 
   async function login(email: string, password: string, remember: boolean) {
-    const { user, access: nextAccess } = await loginRemote(email, password, remember);
+    const token = clearLocalSession();
+    const { user, access: nextAccess } = await authQueueRef.current.run(() => {
+      if (!sessionEpochRef.current.isCurrent(token)) throw new DOMException('Solicitud de acceso reemplazada.', 'AbortError');
+      return loginRemote(email, password, remember);
+    });
+    if (!sessionEpochRef.current.isCurrent(token)) return;
+    serverVerifiedRef.current = true;
+    saveSessionPreview(user, nextAccess);
     clearLegacyAuth();
+    authUserRef.current = user;
     setAuthUser(user);
     setAccess(nextAccess);
     setAuthChecked(true);
-    if (nextAccess.status !== 'expired') await hydrateUser(user);
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('view') === 'amigos') setPage('amigos');
+    if (nextAccess.status !== 'expired') await hydrateUser(user, token);
   }
 
   async function register(name: string, email: string, password: string) {
-    const { user, access: nextAccess } = await registerRemote(name, email, password);
+    const token = clearLocalSession();
+    const { user, access: nextAccess } = await authQueueRef.current.run(() => {
+      if (!sessionEpochRef.current.isCurrent(token)) throw new DOMException('Solicitud de registro reemplazada.', 'AbortError');
+      return registerRemote(name, email, password);
+    });
+    if (!sessionEpochRef.current.isCurrent(token)) return;
+    serverVerifiedRef.current = true;
+    saveSessionPreview(user, nextAccess);
     clearLegacyAuth();
+    authUserRef.current = user;
     setAuthUser(user);
     setAccess(nextAccess);
     setAuthChecked(true);
-    await hydrateUser(user);
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('view') === 'amigos') setPage('amigos');
+    if (nextAccess.status !== 'expired') await hydrateUser(user, token);
   }
 
-  async function refreshAccess() {
-    const { user, access: nextAccess } = await getRemoteSession();
-    setAuthUser(user);
-    setAccess(nextAccess);
-    if (nextAccess.status === 'expired') return false;
-    setDataStatus('loading');
-    await hydrateUser(user);
-    return true;
+  async function checkAccountAccess() {
+    const user = authUserRef.current;
+    const token = sessionEpochRef.current.capture();
+    if (!user) return false;
+    const response = await getRemoteSession({ signal: token.signal });
+    if (!isCurrentSession(user, token)) return false;
+    if (normalizeUserEmail(response.user.email) !== normalizeUserEmail(user.email)) {
+      clearLocalSession();
+      throw new ApiOwnershipError();
+    }
+    authUserRef.current = response.user;
+    setAuthUser(response.user);
+    serverVerifiedRef.current = true;
+    setAuthChecked(true);
+    saveSessionPreview(response.user, response.access);
+    if (response.access.status === 'expired') {
+      lockExpiredAccess(response.access);
+      return false;
+    }
+    setAccess(response.access);
+    await hydrateUser(response.user, token);
+    return isCurrentSession(response.user, token) && response.access.status === 'active';
+  }
+
+  async function changeOwnPassword(currentPassword: string, newPassword: string) {
+    const user = authUserRef.current;
+    const token = sessionEpochRef.current.capture();
+    if (!user || !serverVerifiedRef.current) throw new Error('Espera a que se conecte tu cuenta antes de cambiar la contraseña.');
+    await authQueueRef.current.run(async () => {
+      if (!isCurrentSession(user, token)) throw new DOMException('La sesión cambió.', 'AbortError');
+      await changePasswordRemote(currentPassword, newPassword, { userEmail: user.email, signal: token.signal });
+      if (!isCurrentSession(user, token)) return;
+      clearLocalSession();
+      setAuthChecked(true);
+      setSyncError('Contraseña actualizada. Inicia sesión con tu nueva contraseña.');
+    });
+  }
+
+  function setPreferredUnit(unit: Unit) {
+    if (unit === stateRef.current.unit) return;
+    commitState(createMutation({ type: 'setUnit', unit }));
   }
 
   function logout() {
-    syncEpochRef.current += 1;
-    void logoutRemote().catch(() => undefined);
-    clearLegacyAuth();
-    setBuilderMode(null);
-    setDeleteRoutineOpen(false);
-    setCompletedLog(null);
-    setActiveWorkout(null);
-    setPage('inicio');
-    setAuthUser(null);
-    setAccess(null);
-    const emptyState = createInitialState();
-    stateRef.current = emptyState;
-    setState(emptyState);
-    setMigrationCandidate(null);
-    setDataStatus('idle');
-    setSyncError('');
+    const token = clearLocalSession();
+    // Always finish this DELETE before a new login's POST can replace the cookie.
+    void authQueueRef.current.run(logoutRemote).catch(() => {
+      if (sessionEpochRef.current.isCurrent(token)) setSyncError('No se pudo cerrar la sesión del servidor. Revisa tu conexión.');
+    });
   }
 
   function toggleUnit() {
     const unit = stateRef.current.unit === 'kg' ? 'lb' : 'kg';
-    commitState({ ...stateRef.current, unit }, createMutation({ type: 'setUnit', unit }));
+    commitState(createMutation({ type: 'setUnit', unit }));
   }
 
-  if (!authChecked) return null;
-  if (!authUser) return <LoginScreen onLogin={login} onRegister={register} />;
+  const socialRequests = useMemo(() => {
+    async function run<T>(operation: (options: StateRequestOptions) => Promise<T>, signal?: AbortSignal): Promise<T> {
+      const user = authUserRef.current;
+      const token = sessionEpochRef.current.capture();
+      if (!user) throw new ApiOwnershipError();
+      if (!serverVerifiedRef.current) throw new ApiError('Espera a que se conecte tu cuenta e inténtalo de nuevo.', 503);
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      signal?.addEventListener('abort', abort, { once: true });
+      token.signal.addEventListener('abort', abort, { once: true });
+      if (signal?.aborted || token.signal.aborted) controller.abort();
+      try {
+        const options = { userEmail: user.email, signal: controller.signal };
+        const result = await operation(options);
+        if (!isCurrentSession(user, token)) throw new DOMException('La sesión cambió.', 'AbortError');
+        return result;
+      } catch (reason) {
+        handleAccessError(reason, user, token);
+        throw reason;
+      } finally {
+        signal?.removeEventListener('abort', abort);
+        token.signal.removeEventListener('abort', abort);
+      }
+    }
+    return {
+      load: (signal?: AbortSignal) => run(getSocialDashboard, signal),
+      act: (action: SocialAction, signal?: AbortSignal) => run(options => actSocial(action, options), signal),
+      search: (email: string, signal?: AbortSignal) => run(options => findSocialPerson(email, options), signal),
+      detail: (postId: string, signal?: AbortSignal) => run(options => getSocialWorkoutDetail(postId, options), signal),
+    };
+  }, [authUser?.email]);
+
+  if (!authUser) return <LoginScreen onLogin={login} onRegister={register} sessionNotice={syncError} />;
   if (!access) return null;
-  if (access.status === 'expired') return <TrialExpiredScreen user={authUser} onRefresh={refreshAccess} onLogout={logout} />;
+  if (access.status === 'expired' && page !== 'perfil') return <TrialExpiredScreen key={normalizeUserEmail(authUser.email)} user={authUser} onLogout={logout} onCheckAccess={checkAccountAccess} onProfile={() => setPage('perfil')} />;
   if (dataStatus === 'migration' && migrationCandidate) {
     return <MigrationScreen user={authUser} candidate={migrationCandidate} busy={migrationBusy} error={syncError} onMigrate={() => void migrateLocalState()} onLogout={logout} />;
   }
@@ -2931,6 +3220,7 @@ export default function App() {
   }
 
   const hasRoutine = state.routine.days.length > 0;
+  const pendingSyncCount = syncSessionRef.current?.pendingCount ?? 0;
   const pausedDraft = readWorkoutDraft(authUser.email);
   const pausedDay = pausedDraft ? state.routine.days.find((day) => day.id === pausedDraft.routineDayId) : undefined;
   const quickWorkout = pausedDay && pausedDraft
@@ -2938,7 +3228,13 @@ export default function App() {
     : getNextWorkout(state.routine, state.logs);
 
   let content: ReactNode;
-  if (page === 'admin' && access.isAdmin) {
+  if (!authChecked) {
+    content = hasRoutine ? <Dashboard state={state} onStart={startWorkout} onNavigate={setPage} onImport={() => setBuilderMode('import')} /> : state.logs.length > 0 ? <HistoryDashboard state={state} onNavigate={setPage} onImport={() => setBuilderMode('import')} /> : <EmptyRoutineState page="inicio" onImport={() => setBuilderMode('import')} />;
+  } else if (page === 'perfil') {
+    content = <ProfileView key={normalizeUserEmail(authUser.email)} user={authUser} access={access} unit={state.unit} onSetUnit={setPreferredUnit} onCheckAccess={checkAccountAccess} onChangePassword={changeOwnPassword} onNotify={setToast} />;
+  } else if (page === 'amigos') {
+    content = <FriendsView key={normalizeUserEmail(authUser.email)} user={authUser} logs={state.logs} load={socialRequests.load} act={socialRequests.act} search={socialRequests.search} detail={socialRequests.detail} onViewWorkout={(detail, returnFocus) => setSharedWorkout({ detail, returnFocus })} />;
+  } else if (page === 'admin' && access.isAdmin) {
     content = <AdminUsersView />;
   } else if (dataStatus === 'loading') {
     content = (
@@ -2952,7 +3248,9 @@ export default function App() {
       ? <CalendarView routine={state.routine} logs={state.logs} onStart={startWorkout} />
       : <ProgressView state={state} onStart={startWorkout} />;
   } else if (!hasRoutine) {
-    content = <EmptyRoutineState page={page} hasLogs={state.logs.length > 0} onImport={() => setBuilderMode('import')} />;
+    content = page === 'inicio' && state.logs.length > 0
+      ? <HistoryDashboard state={state} onNavigate={setPage} onImport={() => setBuilderMode('import')} />
+      : <EmptyRoutineState page={page} hasLogs={state.logs.length > 0} onImport={() => setBuilderMode('import')} />;
   } else if (page === 'rutina') {
     content = <RoutineView routine={state.routine} logs={state.logs} unit={state.unit} onStart={startWorkout} onEdit={() => setBuilderMode('edit')} onImport={() => setBuilderMode('import')} onDelete={requestDeleteRoutine} />;
   } else if (page === 'progreso') {
@@ -2962,8 +3260,8 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
-      <Sidebar page={page} user={authUser} isAdmin={access.isAdmin} onNavigate={setPage} onLogout={logout} />
+    <div className="app-shell" tabIndex={-1}>
+      <Sidebar page={page} user={authUser} isAdmin={access.isAdmin} restricted={access.status === 'expired'} onNavigate={setPage} onLogout={logout} />
       <main className="app-main">
         <Topbar
           page={page}
@@ -2971,18 +3269,30 @@ export default function App() {
           user={authUser}
            onToggleUnit={toggleUnit}
            onImport={() => setBuilderMode('import')}
-           onNotify={() => setToast('Todo al día. Tu próxima sesión está lista.')}
+             onNotify={() => setPage('amigos')}
            onLogout={logout}
            onStartWorkout={() => quickWorkout ? startWorkout(quickWorkout.day, quickWorkout.date) : setBuilderMode('import')}
           workoutActionLabel={!hasRoutine ? 'Subir rutina' : pausedDay ? 'Continuar entreno' : 'Iniciar entreno'}
           hasRoutine={hasRoutine}
-        />
+          exportState={page === 'progreso' && dataStatus === 'ready' ? state : undefined}
+           onExportError={setToast}
+         />
+        {dataStatus === 'ready' && (pendingSyncCount > 0 || syncError) && (
+          <section className="sync-status-banner" role="status" aria-live="polite">
+            <div>
+              <strong>{pendingSyncCount > 0 ? `${pendingSyncCount} ${pendingSyncCount === 1 ? 'cambio pendiente' : 'cambios pendientes'} de sincronizar` : 'No se pudo comprobar la sincronización'}</strong>
+              <p>{syncError || 'La copia local está guardada. Se enviará cuando el servidor confirme tu cuenta.'}</p>
+            </div>
+            <button type="button" className="button button-light" onClick={() => void hydrateUser(authUser)}>Reintentar</button>
+          </section>
+        )}
         {content}
       </main>
+      {sharedWorkout && <WorkoutHistoryModal date={sharedWorkout.detail.workout.date} logs={[sharedWorkout.detail.workout]} ownerName={sharedWorkout.detail.post.owner.name} description={sharedWorkout.detail.post.description} returnFocus={sharedWorkout.returnFocus} onClose={() => setSharedWorkout(null)} />}
       {builderMode && <RoutineBuilderModal initialRoutine={builderMode === 'edit' ? state.routine : undefined} onClose={() => setBuilderMode(null)} onSave={saveRoutine} />}
       {deleteRoutineOpen && <DeleteRoutineModal routineName={state.routine.name} hasPausedSession={!!pausedDraft} onClose={() => setDeleteRoutineOpen(false)} onConfirm={deleteRoutine} />}
-      {activeWorkout && <WorkoutSession active={activeWorkout} logs={state.logs} unit={state.unit} userEmail={authUser.email} onToggleUnit={toggleUnit} onClose={() => setActiveWorkout(null)} onFinish={finishWorkout} />}
-      {completedLog && <CompletionModal log={completedLog} onClose={() => { setCompletedLog(null); setPage('inicio'); }} />}
+      {activeWorkout && <WorkoutSession key={`${authUser.email}:${activeWorkout.day.id}:${activeWorkout.date}`} active={activeWorkout} logs={state.logs} unit={state.unit} userEmail={authUser.email} onClose={() => setWorkout(null)} onFinish={finishWorkout} />}
+      {completedLog && <CompletionModal log={completedLog} returnFocus={completionTriggerRef.current} onClose={() => { completionTriggerRef.current = null; setCompletedLog(null); setPage('inicio'); }} onCommunity={() => { completionTriggerRef.current = null; setCompletedLog(null); setPage('amigos'); }} />}
       {toast && <Toast message={toast} />}
     </div>
   );

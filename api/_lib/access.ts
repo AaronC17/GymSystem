@@ -1,5 +1,6 @@
 import type { AccessInfo, AuthUser } from '../../src/types.js';
 import { findAccount } from './accounts.js';
+import { isCurrentCredentialVersion } from './credentials.js';
 import { readSession } from './session.js';
 import type { VercelRequest } from './vercel.js';
 import { lookupUser, normalizeEmail, type RegisteredUser } from './users.js';
@@ -52,5 +53,6 @@ export async function resolveAccountAccess(email: string, now = new Date()): Pro
 
 export async function resolveSessionAccess(req: VercelRequest, now = new Date()): Promise<AccountAccess | null> {
   const session = readSession(req);
-  return session ? resolveAccountAccess(session.email, now) : null;
+  if (!session || !await isCurrentCredentialVersion(session.email, session.credentialVersion)) return null;
+  return resolveAccountAccess(session.email, now);
 }
