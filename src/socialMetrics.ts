@@ -1,5 +1,6 @@
 import type { BadgeId, SocialBadge, SocialStats } from './socialTypes.js';
 import type { SetLog, WorkoutLog } from './types.js';
+import { KYO_BADGES } from './badgeCatalog.js';
 
 const DAY = 86_400_000;
 const WEEK = 7 * DAY;
@@ -112,14 +113,10 @@ export function computeSocialStats(logs: WorkoutLog[], now: Date = new Date()): 
   const badge = (id: BadgeId, title: string, description: string, value: number, target: number) => {
     badges.push({ id, title, description, earned: value >= target, progress: Math.min(target, Math.max(0, value)), target });
   };
-  badge('first-workout', 'Primer entrenamiento', 'Completa un entrenamiento con al menos una serie válida realizada.', completedWorkouts, 1);
-  for (const target of [10, 25, 50] as const) {
-    badge(`workouts-${target}`, `${target} entrenamientos`, `Completa ${target} entrenamientos únicos con series válidas realizadas.`, completedWorkouts, target);
+  const values = { completedWorkouts, bestWeeklyStreak, personalBests: records };
+  for (const definition of KYO_BADGES) {
+    badge(definition.id, definition.title, definition.description, values[definition.metric], definition.target);
   }
-  for (const target of [2, 4, 8] as const) {
-    badge(`streak-${target}`, `${target} semanas seguidas`, `Entrena al menos una vez por semana durante ${target} semanas consecutivas (lunes a domingo UTC). Se conserva tras un descanso.`, bestWeeklyStreak, target);
-  }
-  badge('personal-best', 'Nueva marca personal', 'Mejora tu máximo histórico de fuerza estimada Epley (peso en kg × (1 + repeticiones / 30)) en otra sesión. No cuenta la primera sesión ni peso corporal; máximo una marca por ejercicio y sesión.', records, 1);
   return { completedWorkouts, currentWeeklyStreak, bestWeeklyStreak, personalBests: records, badges };
 }
 

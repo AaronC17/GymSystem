@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <title>Kyo · Instinto constante</title>
+  <defs>
+    <linearGradient id="rim" x1="68" y1="32" x2="182" y2="225" gradientUnits="userSpaceOnUse"><stop stop-color="#DBF9DF"/><stop offset=".5" stop-color="#8ED8C8"/><stop offset="1" stop-color="#608C65"/></linearGradient>
+    <linearGradient id="night" x1="68" y1="40" x2="172" y2="218" gradientUnits="userSpaceOnUse"><stop stop-color="#405C4A"/><stop offset="1" stop-color="#1C2B23"/></linearGradient>
+    <linearGradient id="fur" x1="87" y1="62" x2="164" y2="185" gradientUnits="userSpaceOnUse"><stop stop-color="#637566"/><stop offset="1" stop-color="#2A3A2E"/></linearGradient>
+    <linearGradient id="chest" x1="128" y1="143" x2="128" y2="196" gradientUnits="userSpaceOnUse"><stop stop-color="#C8D7BA"/><stop offset="1" stop-color="#738D68"/></linearGradient>
+  </defs>
+  <path d="M91 25h74l59 59v83l-59 64H91l-59-64V84Z" fill="#18271D" stroke="#18271D" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M93 28h70l58 58v79l-58 63H93l-58-63V86Z" fill="url(#rim)"/>
+  <path d="M97 37h62l53 53v71l-53 58H97l-53-58V90Z" fill="url(#night)" stroke="#DCF7D8" stroke-opacity=".4" stroke-width="2"/>
+  <circle cx="128" cy="125" r="73" stroke="#8ED8C8" stroke-opacity=".3" stroke-width="2" stroke-dasharray="89 26" transform="rotate(-36 128 125)"/>
+  <path d="m128 39 5 5-5 5-5-5Zm79 83 5 5-5 5-5-5Zm-79 82 5 5-5 5-5-5Zm-79-82 5 5-5 5-5-5Z" fill="#D7F45B"/>
+  <ellipse cx="128" cy="197" rx="58" ry="10" fill="#13241A" opacity=".65"/>
+  <path d="M98 144q-10 10-17 37-20 7-12 15 18 12 41-1h36q24 13 42-1 5-10-14-14-8-27-17-36" fill="#3D523B" stroke="#1B3023" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m104 145 24 12 23-12-7 35-16 15-17-15Z" fill="url(#chest)"/>
+  <path d="m85 94-8-42 32 25q19-8 39 0l31-25-6 42 11 33-12 10 6 10-20 3q-30 27-60 0l-20-3 6-10-12-10Z" fill="url(#fur)" stroke="#1B3023" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m80 61-6-23m12 30-2-23m92 16 6-23m-12 30 2-23" stroke="#D7F45B" stroke-width="4" stroke-linecap="round"/>
+  <path d="m86 69 4 24 14-12Zm83 0-18 12 14 12Z" fill="#8ED8C8"/>
+  <path d="m85 122 20 6 23 21 23-21 20-6-10 24-16 4q-17 15-35 0l-16-4Z" fill="#C3D4B4"/>
+  <path d="M91 111q11 10 22 0m30 0q11 10 22 0" stroke="#D7F45B" stroke-width="4" stroke-linecap="round"/>
+  <path d="m128 83-8 12 8-4 8 4Z" fill="#D7F45B"/>
+  <path d="m120 131 8-3 8 3-8 8Z" fill="#233C2B"/><path d="M119 144q9 7 18 0" stroke="#435C41" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M103 157q25 10 49-1l-6 13-19 3-21-5Z" fill="#D7F45B"/>
+  <path d="m144 166 12 15 6-20" fill="#B1CA43"/>
+  <path d="m99 170 14 17m42-17-14 17" stroke="#203D2A" stroke-width="14" stroke-linecap="round"/>
+  <path d="m99 170 14 17m42-17-14 17" stroke="#687F58" stroke-width="9" stroke-linecap="round"/>
+  <path d="M173 189q-20 17-68 9" stroke="#203529" stroke-width="14" stroke-linecap="round"/><path d="M173 188q-20 17-68 9" stroke="#627D54" stroke-width="9" stroke-linecap="round"/>
+  <path d="m63 78 2 6 6 2-6 2-2 6-2-6-6-2 6-2Zm130 88 2 6 6 2-6 2-2 6-2-6-6-2 6-2Z" fill="#D7F3DC"/>
+</svg>

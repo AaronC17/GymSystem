@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <title>Kyo · En la zona</title>
+  <defs>
+    <linearGradient id="rim" x1="56" y1="25" x2="191" y2="230" gradientUnits="userSpaceOnUse"><stop stop-color="#D4FFEC"/><stop offset=".48" stop-color="#8ED8C8"/><stop offset="1" stop-color="#387F73"/></linearGradient>
+    <linearGradient id="night" x1="58" y1="33" x2="177" y2="225" gradientUnits="userSpaceOnUse"><stop stop-color="#31584E"/><stop offset="1" stop-color="#182720"/></linearGradient>
+    <linearGradient id="fur" x1="89" y1="63" x2="167" y2="174" gradientUnits="userSpaceOnUse"><stop stop-color="#596A5F"/><stop offset="1" stop-color="#26342D"/></linearGradient>
+    <linearGradient id="metal" x1="72" y1="167" x2="178" y2="197" gradientUnits="userSpaceOnUse"><stop stop-color="#D4E7DA"/><stop offset=".5" stop-color="#7B9687"/><stop offset="1" stop-color="#405D50"/></linearGradient>
+  </defs>
+  <path d="M96 23h64l62 69v72l-62 69H96l-62-69V92Z" fill="#15241D" stroke="#15241D" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M98 25h60l61 68v70l-61 67H98l-61-67V93Z" fill="url(#rim)"/>
+  <path d="M102 34h52l56 62v64l-56 61h-52l-56-61V96Z" fill="url(#night)" stroke="#D0FFEA" stroke-opacity=".35" stroke-width="2"/>
+  <path d="m56 138 21-13m-21 30 18-11m112-19 15 8m-12 10 16 9" stroke="#8ED8C8" stroke-opacity=".4" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="128" cy="113" r="62" stroke="#8ED8C8" stroke-opacity=".2" stroke-dasharray="3 8"/>
+  <ellipse cx="128" cy="203" rx="60" ry="10" fill="#10241A" opacity=".5"/>
+  <path d="M98 141q-17 21-8 47l19 12h40l19-12q9-26-9-47" fill="#3B4B3E" stroke="#14281D" stroke-width="4"/>
+  <path d="m101 151 27 16 29-16-9 39h-37Z" fill="#63745A"/>
+  <path d="m84 91-7-41 31 24q21-7 41 0l30-24-7 41 11 37-14 6 7 9-20 4q-28 30-55 0l-21-4 7-9-13-6Z" fill="url(#fur)" stroke="#192B22" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m80 57-5-20m10 26-1-19m92 13 5-20m-10 26 1-19" stroke="#D7F45B" stroke-width="4" stroke-linecap="round"/>
+  <path d="m86 66 3 22 13-10Zm83 0-18 12 14 10Z" fill="#8ED8C8"/>
+  <path d="m83 118 19 5 26 21 26-21 20-5-9 23-17 5q-20 16-40 0l-16-5Z" fill="#BBCBB2"/>
+  <path d="m92 103 22 7q-17 15-22-7Zm50 7 23-7q-6 22-23 7Z" fill="#D7F45B"/>
+  <path d="m104 109 1 7m48-7-1 7" stroke="#172B20" stroke-width="4" stroke-linecap="round"/>
+  <path d="m128 82-7 11 7-3 8 3Z" fill="#D7F45B"/>
+  <path d="m120 130 8-3 8 3-8 7Z" fill="#23352A"/><path d="M120 143q8 5 17-3" stroke="#3C5141" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M104 155q24 8 47-1l-4 13-20 4-24-6Z" fill="#D7F45B"/>
+  <path d="m143 162 15 19 4-22" fill="#AFC93F"/>
+  <rect x="65" y="175" width="127" height="12" rx="5" fill="url(#metal)" stroke="#1C3328" stroke-width="3"/>
+  <rect x="57" y="163" width="15" height="36" rx="5" fill="#8ED8C8" stroke="#1C3328" stroke-width="3"/><rect x="47" y="171" width="10" height="20" rx="4" fill="#537D6A"/>
+  <rect x="184" y="163" width="15" height="36" rx="5" fill="#8ED8C8" stroke="#1C3328" stroke-width="3"/><rect x="199" y="171" width="10" height="20" rx="4" fill="#537D6A"/>
+  <path d="M89 167q-6-14 5-15 10-1 14 15v17q-8 9-19-1Zm59 0q5-15 14-15 10 0 5 15v16q-10 10-19 1Z" fill="#62765C" stroke="#20382B" stroke-width="3"/>
+  <path d="m96 175 1 7m58-7v7" stroke="#BDCEAF" stroke-width="2" stroke-linecap="round"/>
+  <path d="m206 67 3 9 9 3-9 3-3 9-3-9-9-3 9-3Z" fill="#D7F45B"/>
+  <path d="m115 217 13 7 13-7" stroke="#D7F45B" stroke-width="2" stroke-linecap="round"/>
+</svg>

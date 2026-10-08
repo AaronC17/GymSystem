@@ -111,7 +111,8 @@ describe('badges and goals', () => {
   it('exposes every locked badge with clear metadata and finite capped progress', () => {
     const empty = stats([]);
     expect(empty).toMatchObject({ completedWorkouts: 0, currentWeeklyStreak: 0, bestWeeklyStreak: 0, personalBests: 0 });
-    expect(empty.badges.map(badge => badge.id)).toEqual(['first-workout', 'workouts-10', 'workouts-25', 'workouts-50', 'streak-2', 'streak-4', 'streak-8', 'personal-best']);
+    expect(empty.badges.map(badge => badge.id)).toEqual(['first-workout', 'workouts-10', 'workouts-25', 'streak-2', 'streak-4', 'personal-best']);
+    expect(empty.badges.map(badge => badge.title)).toEqual(['Despertar', 'En la zona', 'Garra firme', 'Ritmo felino', 'Instinto constante', 'Nueva forma']);
     for (const badge of empty.badges) {
       expect(badge).toMatchObject({ earned: false, progress: 0 });
       expect(badge.title.length).toBeGreaterThan(0);
@@ -125,7 +126,7 @@ describe('badges and goals', () => {
       expect(badge.earned).toBe(badge.progress === badge.target);
     }
     expect(stats(logs).badges.filter(badge => badge.id.startsWith('workouts-')).every(badge => badge.earned)).toBe(true);
-    expect(stats(logs).badges.find(badge => badge.id === 'streak-8')?.earned).toBe(true);
+    expect(stats(logs).badges.find(badge => badge.id === 'streak-4')?.earned).toBe(true);
   });
 
   it('counts inclusive goal dates using the same completed, nonfuture, deduplicated sessions', () => {

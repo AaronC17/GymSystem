@@ -421,7 +421,7 @@ describe('explicit workout snapshots and descriptions', () => {
     expect(response.body).toEqual({ message: 'Esta publicación antigua no incluye el detalle. El autor puede eliminarla y volver a compartir el entrenamiento.' });
     expect(db.collection.mock.calls.some(([name]) => name === 'userStates')).toBe(false);
     const badge = (await request({ type: 'shareBadge', badgeId: 'first-workout', description: ' My badge ' })).dashboard.posts.find((entry) => entry.kind === 'badge')!;
-    expect(badge).toMatchObject({ description: 'My badge', hasWorkoutDetails: false });
+    expect(badge).toMatchObject({ description: 'My badge', hasWorkoutDetails: false, badgeId: 'first-workout', title: 'Despertar' });
     expect((await detail(badge.id)).statusCode).toBe(400);
     expect(db.collection('socialPosts').documents.get(badge.id)).not.toHaveProperty('workoutSnapshot');
     await request({ type: 'shareBadge', badgeId: 'first-workout', description: 'Changed' });

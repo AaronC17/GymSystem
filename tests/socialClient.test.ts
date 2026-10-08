@@ -49,6 +49,17 @@ describe('social client boundary', () => {
     expect(init?.cache).toBe('no-store');
     expect(init?.credentials).toBe('same-origin');
   });
+  it('accepts explicit badge identities and old posts, but rejects invalid or misplaced identities', async () => {
+    const post = { ...workoutDetail().post, kind: 'badge' as const, hasWorkoutDetails: false };
+    for (const badgeId of [undefined, 'first-workout', 'workouts-50'] as const) {
+      vi.mocked(fetch).mockResolvedValueOnce(json({ ...fixture(), posts: [{ ...post, ...(badgeId ? { badgeId } : {}) }] }));
+      expect((await getSocialDashboard({ userEmail: email })).posts).toHaveLength(1);
+    }
+    for (const invalid of [{ ...post, badgeId: '../../file.svg' }, { ...workoutDetail().post, badgeId: 'first-workout' }]) {
+      vi.mocked(fetch).mockResolvedValueOnce(json({ ...fixture(), posts: [invalid] }));
+      await expect(getSocialDashboard({ userEmail: email })).rejects.toBeInstanceOf(ApiResponseError);
+    }
+  });
   it('uses POST with origin-protected JSON for invitations', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json(fixture()));
     await actSocial({ type: 'invite', email: 'friend@example.invalid' }, { userEmail: email });

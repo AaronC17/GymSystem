@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <title>Kyo · Garra firme</title>
+  <defs>
+    <linearGradient id="rim" x1="64" y1="29" x2="199" y2="231" gradientUnits="userSpaceOnUse"><stop stop-color="#FFE4B7"/><stop offset=".42" stop-color="#FFB98A"/><stop offset="1" stop-color="#9E5C43"/></linearGradient>
+    <linearGradient id="night" x1="64" y1="38" x2="187" y2="224" gradientUnits="userSpaceOnUse"><stop stop-color="#55453A"/><stop offset="1" stop-color="#232820"/></linearGradient>
+    <linearGradient id="fur" x1="86" y1="62" x2="176" y2="168" gradientUnits="userSpaceOnUse"><stop stop-color="#6B6E61"/><stop offset="1" stop-color="#29332A"/></linearGradient>
+    <linearGradient id="chest" x1="103" y1="145" x2="150" y2="202" gradientUnits="userSpaceOnUse"><stop stop-color="#C8C8A3"/><stop offset="1" stop-color="#737F5E"/></linearGradient>
+  </defs>
+  <path d="m128 20 86 32-4 105q-7 47-82 78-75-31-82-78L42 52Z" fill="#251F18" stroke="#251F18" stroke-width="7" stroke-linejoin="round"/>
+  <path d="m128 23 83 31-4 102q-7 44-79 76-72-32-79-76L45 54Z" fill="url(#rim)"/>
+  <path d="m128 34 73 27-4 94q-7 39-69 67-62-28-69-67l-4-94Z" fill="url(#night)" stroke="#FFE4BD" stroke-opacity=".4" stroke-width="2"/>
+  <path d="m65 113 9 13-8 7 11 12-8 7 13 13m109-52-9 13 8 7-11 12 8 7-13 13" stroke="#FFB98A" stroke-opacity=".45" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="128" cy="198" rx="55" ry="11" fill="#182319" opacity=".65"/>
+  <path d="M100 142q-19 17-16 46l-10 8q-3 12 20 12h19l5-41h20l5 41h21q20 0 16-12l-10-8q2-29-17-46" fill="#3B4836" stroke="#19271E" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m104 147 24 13 23-13-5 35-18 19-18-19Z" fill="url(#chest)"/>
+  <path d="m83 93-6-42 32 24q20-8 40 0l31-24-6 42 12 33-13 10 6 9-20 5q-31 30-62 0l-20-5 6-9-12-10Z" fill="url(#fur)" stroke="#19271E" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m79 58-5-22m11 28-2-20m95 14 5-22m-11 28 2-20" stroke="#D7F45B" stroke-width="4" stroke-linecap="round"/>
+  <path d="m86 67 3 23 14-12Zm85 0-18 11 14 12Z" fill="#E6B08A"/>
+  <path d="m83 121 22 6 23 21 24-21 22-6-12 23-14 5q-20 18-40 0l-14-5Z" fill="#C9CEB0"/>
+  <path d="m91 105 24 6q-18 14-24-6Zm50 6 24-6q-6 20-24 6Z" fill="#D7F45B"/>
+  <path d="m104 109 1 7m49-7-1 7" stroke="#1C2D21" stroke-width="4" stroke-linecap="round"/>
+  <path d="m128 81-8 12 8-4 8 4Z" fill="#D7F45B"/>
+  <path d="m154 87-5 11m13-8-5 11" stroke="#A9B58E" stroke-width="2" stroke-linecap="round"/>
+  <path d="m120 131 8-3 9 3-9 8Z" fill="#253429"/><path d="M118 146q10 4 21 0" stroke="#4B5840" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M104 155q24 8 48-1l-4 12-20 7-23-8Z" fill="#D7F45B"/>
+  <path d="m140 165 11 25 11-20Z" fill="#A9C641"/>
+  <path d="m122 181 6 5 6-5m-10 9 4 3 4-3" stroke="#DBE2B5" stroke-width="2" stroke-linecap="round"/>
+  <path d="m86 198 1 7m8-7 1 7m65-7-1 7m8-7-1 7" stroke="#A6B18D" stroke-width="2" stroke-linecap="round"/>
+  <path d="m208 81 3 8 8 3-8 3-3 8-3-8-8-3 8-3Z" fill="#FFDBAE"/>
+  <path d="m119 220 9 5 9-5" stroke="#FFD4A4" stroke-width="2" stroke-linecap="round"/>
+</svg>

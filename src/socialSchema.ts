@@ -1,11 +1,12 @@
 import type { SocialDashboard, SocialPost } from './socialTypes';
+import { ALL_BADGE_IDS } from './badgeCatalog';
 
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown, max = 320): v is string => typeof v === 'string' && v.length > 0 && v.length <= max;
 const count = (v: unknown) => Number.isSafeInteger(v) && Number(v) >= 0;
 const date = (v: unknown) => text(v, 40) && Number.isFinite(Date.parse(v));
 const person = (v: unknown) => record(v) && text(v.name, 200) && text(v.email);
-const badgeIds = new Set(['first-workout', 'workouts-10', 'workouts-25', 'workouts-50', 'streak-2', 'streak-4', 'streak-8', 'personal-best']);
+const badgeIds = new Set<string>(ALL_BADGE_IDS);
 function stats(v: unknown) {
   return record(v) && count(v.completedWorkouts) && count(v.currentWeeklyStreak) && count(v.bestWeeklyStreak) && count(v.personalBests) &&
     Array.isArray(v.badges) && v.badges.length <= 20 && v.badges.every(b => record(b) && badgeIds.has(String(b.id)) &&
@@ -17,6 +18,7 @@ function socialPerson(v: unknown) {
 export function isSocialPost(p: unknown): p is SocialPost {
   return record(p) && text(p.id, 200) && person(p.owner) &&
     ['workout', 'badge'].includes(String(p.kind)) && text(p.title, 200) && text(p.detail, 1000) &&
+    (p.badgeId === undefined || p.kind === 'badge' && typeof p.badgeId === 'string' && badgeIds.has(p.badgeId)) &&
     typeof p.description === 'string' && p.description.length <= 500 && typeof p.hasWorkoutDetails === 'boolean' &&
     (p.kind === 'workout' || p.hasWorkoutDetails === false) && date(p.createdAt) && count(p.cheers) && typeof p.cheered === 'boolean';
 }

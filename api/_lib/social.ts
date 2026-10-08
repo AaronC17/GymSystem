@@ -3,6 +3,7 @@ import type { Db } from 'mongodb';
 import type { AuthUser, WorkoutLog } from '../../src/types.js';
 import type { SocialAction, SocialDashboard, SocialGoal, SocialPerson, SocialPost, SocialWorkoutDetail } from '../../src/socialTypes.js';
 import { computeSocialStats, goalProgress } from '../../src/socialMetrics.js';
+import { ALL_BADGE_IDS } from '../../src/badgeCatalog.js';
 import { isStoredState } from '../../src/stateSchema.js';
 import { findAccount } from './accounts.js';
 
@@ -82,7 +83,7 @@ export function parseSocialAction(body: unknown, now = new Date()): SocialAction
     case 'deleteGoal': if (id(action.goalId)) return { type: action.type, goalId: action.goalId }; break;
     case 'shareWorkout': if (id(action.workoutId)) return { type: action.type, workoutId: action.workoutId, description: description(action.description) }; break;
     case 'shareBadge':
-      if (typeof action.badgeId === 'string' && ['first-workout', 'workouts-10', 'workouts-25', 'workouts-50', 'streak-2', 'streak-4', 'streak-8', 'personal-best'].includes(action.badgeId)) return { type: 'shareBadge', badgeId: action.badgeId as Extract<SocialAction, { type: 'shareBadge' }>['badgeId'], description: description(action.description) };
+      if (typeof action.badgeId === 'string' && ALL_BADGE_IDS.some(id => id === action.badgeId)) return { type: 'shareBadge', badgeId: action.badgeId as Extract<SocialAction, { type: 'shareBadge' }>['badgeId'], description: description(action.description) };
       break;
     case 'deletePost': case 'cheer': if (id(action.postId)) return { type: action.type, postId: action.postId }; break;
   }
@@ -217,7 +218,10 @@ export class SocialService {
     await this.posts.updateOne({ _id }, { $setOnInsert: { ownerEmail: this.user.email, kind, title, detail, description, ...(workoutSnapshot ? { workoutSnapshot } : {}), createdAt: this.now, cheerers: [] } }, { upsert: true });
   }
   private postDto(post: Post, owner: AuthUser): SocialPost {
-    return { id: post._id, owner, kind: post.kind, title: post.title, detail: post.detail, description: typeof post.description === 'string' ? post.description : '', hasWorkoutDetails: post.kind === 'workout' && validSnapshot(post.workoutSnapshot), createdAt: post.createdAt.toISOString(), cheers: post.cheerers.length, cheered: post.cheerers.includes(this.user.email) };
+    // Existing deterministic IDs identify the illustration without rewriting
+    // immutable publications, inferring from titles, or reading private history.
+    const badgeId = post.kind === 'badge' ? ALL_BADGE_IDS.find(id => hash([post.ownerEmail, 'badge', id]) === post._id) : undefined;
+    return { id: post._id, owner, kind: post.kind, ...(badgeId ? { badgeId } : {}), title: post.title, detail: post.detail, description: typeof post.description === 'string' ? post.description : '', hasWorkoutDetails: post.kind === 'workout' && validSnapshot(post.workoutSnapshot), createdAt: post.createdAt.toISOString(), cheers: post.cheerers.length, cheered: post.cheerers.includes(this.user.email) };
   }
   async workoutDetail(postId: string): Promise<SocialWorkoutDetail> {
     if (!validSocialId(postId)) fail(400, 'Publicación inválida.');

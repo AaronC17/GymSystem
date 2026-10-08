@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <title>Kyo · Nueva forma</title>
+  <defs>
+    <linearGradient id="rim" x1="56" y1="31" x2="194" y2="229" gradientUnits="userSpaceOnUse"><stop stop-color="#F1E8FF"/><stop offset=".4" stop-color="#C7B8FF"/><stop offset=".75" stop-color="#9CBD76"/><stop offset="1" stop-color="#DAF581"/></linearGradient>
+    <linearGradient id="night" x1="80" y1="44" x2="163" y2="217" gradientUnits="userSpaceOnUse"><stop stop-color="#514963"/><stop offset="1" stop-color="#252E28"/></linearGradient>
+    <linearGradient id="fur" x1="87" y1="96" x2="184" y2="158" gradientUnits="userSpaceOnUse"><stop stop-color="#79816F"/><stop offset="1" stop-color="#344534"/></linearGradient>
+    <linearGradient id="trail" x1="41" y1="198" x2="146" y2="140" gradientUnits="userSpaceOnUse"><stop stop-color="#D7F45B" stop-opacity="0"/><stop offset="1" stop-color="#D7F45B"/></linearGradient>
+  </defs>
+  <path d="m128 19 84 49 11 91-57 73H91l-58-73 11-91Z" fill="#262334" stroke="#262334" stroke-width="7" stroke-linejoin="round"/>
+  <path d="m128 22 81 48 11 88-56 71H93l-57-71 11-88Z" fill="url(#rim)"/>
+  <path d="m128 33 72 43 10 79-51 65H97l-51-65 10-79Z" fill="url(#night)" stroke="#EBE2FF" stroke-opacity=".4" stroke-width="2"/>
+  <path d="m128 57 52 60-52 69-52-69Z" stroke="#C7B8FF" stroke-opacity=".3" stroke-width="2"/>
+  <path d="M45 197q48-8 91-52M57 215q49-22 87-62M41 175q36 3 75-37" stroke="url(#trail)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M94 134q-40 7-33-22 2-8 8-6 5 2 4 8-1 9 26 0" fill="#5C704F" stroke="#223627" stroke-width="4"/>
+  <path d="M89 118q7-13 33-11l42 9-10 31-37 14-24-14Z" fill="url(#fur)" stroke="#223627" stroke-width="4"/>
+  <path d="m98 140-16 17-26 4q-8 7 1 11l31-3 25-22" fill="#647A53" stroke="#223627" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m115 147-10 26-18 8q-6 9 5 10l22-11 14-28" fill="#3E553A" stroke="#223627" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m153 122 21 5 17-15q12-3 12 6l-23 25-32-6m-6 5 27 15 28-4q10 5 3 11l-33 6-33-14" fill="#74825B" stroke="#223627" stroke-width="4" stroke-linejoin="round"/>
+  <g transform="rotate(12 165 104)">
+    <path d="m137 84-6-38 28 24q14-4 29 3l26-18-10 35 8 28-12 6 6 8-18 2q-22 21-44 0l-18-4 8-9-11-7Z" fill="url(#fur)" stroke="#223627" stroke-width="4" stroke-linejoin="round"/>
+    <path d="m134 55-5-20m10 24-1-19m73 22 9-19m-15 24 5-17" stroke="#D7F45B" stroke-width="4" stroke-linecap="round"/>
+    <path d="m141 63 3 21 12-9Zm63 7-15 9 10 7Z" fill="#C7B8FF"/>
+    <path d="m134 111 22 4 17 15 21-14 10-3-8 19-17 9q-25 1-37-16Z" fill="#CDD6B6"/>
+    <path d="m145 97 20 6q-16 13-20-6Zm34 9 20-5q-5 18-20 5Z" fill="#E3FE8C"/>
+    <path d="m156 103 1 5m32-1-1 5" stroke="#223627" stroke-width="3" stroke-linecap="round"/>
+    <path d="m173 83-7 10 7-2 7 4Z" fill="#D7F45B"/>
+    <path d="m168 119 8-2 7 4-8 6Z" fill="#293E29"/><path d="M168 134q9 5 16-1" stroke="#465C3D" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  <path d="m144 136 17 5-10 12-20-11Z" fill="#D7F45B"/><path d="m140 142-28 8-3-10 25-4Z" fill="#B9DA47"/>
+  <path d="m78 69 4 10 10 4-10 4-4 10-4-10-10-4 10-4Zm120 117 4 10 10 4-10 4-4 10-4-10-10-4 10-4Z" fill="#E5D7FF"/>
+  <path d="m175 37 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z" fill="#D7F45B"/>
+  <circle cx="128" cy="205" r="4" fill="#D7F45B"/><path d="M113 205h-6m42 0h-6" stroke="#C7B8FF" stroke-width="2" stroke-linecap="round"/>
+</svg>

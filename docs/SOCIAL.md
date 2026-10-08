@@ -13,7 +13,7 @@ Amigos reúne comunidad privada, solicitudes dirigidas por correo, metas e insig
 
 - **Buscar → seleccionar → invitar → aceptar → compartir → celebrar:** se escribe el correo completo de una cuenta existente, se selecciona en un combobox y la persona recibe/acepta dentro de la app. No se envían emails. El identificador sigue siendo el correo normalizado usado por `users._id` y las sesiones.
 - **Metas:** número de entrenamientos en un intervalo; privadas o compartidas con amigos. El progreso proviene de sesiones sincronizadas, no de un contador editable.
-- **Insignias:** hitos de entrenamientos, mejor racha semanal y mejora personal. Se conserva el reconocimiento de la mejor racha al descansar; editar/eliminar los registros que lo justifican recalcula los logros.
+- **Insignias:** colección Kyo de seis hitos: primer entrenamiento, 10 y 25 entrenamientos, mejor racha de 2 y 4 semanas y mejora personal. Se conserva el reconocimiento de la mejor racha al descansar; editar/eliminar los registros que lo justifican recalcula los logros. Identificadores estables y catálogo compartido en `src/badgeCatalog.ts`.
 - **Resultados:** cada publicación es explícita y puede incluir una descripción de hasta 500 caracteres. Publicar un entrenamiento autoriza compartir la copia de esa sesión, con ejercicios, series y cargas, mediante el modal de calendario; nunca el historial entero. La pantalla explica esto antes de publicar. Se puede eliminar.
 - **Privacidad:** estadísticas privadas por defecto; amistades aceptadas, no seguidores públicos. Eliminar una amistad retira el acceso social a esa persona en consultas posteriores.
 - **Errores honestos:** las acciones esperan confirmación del servidor. No se puede enviar sin seleccionar una cuenta encontrada; editar el correo invalida la selección y cancela búsquedas anteriores.
@@ -32,4 +32,12 @@ No hay proveedor de email ni configuración SMTP. Las búsquedas exactas tienen 
 
 Antes de escalar, revisar índices de `socialRelationships` (members/state/updatedAt), `socialPosts` (ownerEmail/createdAt) y un índice TTL para `socialInviteQuotas.expiresAt`. No se crearon índices ni modificaron colecciones de producción durante esta revisión.
 
-No se han desplegado cambios, modificado Atlas ni enviado invitaciones a personas reales.
+### Identidad y movimiento de Kyo
+
+Kyo es un lince carbón con mechones lima, ojos expresivos y un pañuelo deportivo. La colección usa seis poses originales en SVG, con bordes de esmalte y acentos lima/menta/melocotón/lavanda. La interfaz sirve los SVG; los PNG transparentes de 1024 px se conservan en `docs/design/kyo` como entregables de diseño, fuera del bundle público.
+
+Amigos incorpora hero ilustrado, avatares con iniciales reales, feed con arte de insignias, detalle ampliado con Escape/foco restaurado y entradas/transiciones finitas. No utiliza fotos ajenas ni actividad simulada. Los efectos respetan `prefers-reduced-motion`. El centrado móvil continúa limitado a Amigos, con campos editables y descripciones personales alineados a la izquierda.
+
+El campo opcional `SocialPost.badgeId` se deriva del hash determinista de autor/tipo/ID de insignia que ya identifica las publicaciones; no se infiere del título ni se consulta historial privado adicional. Las publicaciones de 50 entrenamientos y 8 semanas siguen siendo legibles, pero esas insignias no forman parte de la nueva colección. No se migran ni reescriben publicaciones históricas. Clientes anteriores aceptan las seis métricas; clientes nuevos toleran publicaciones sin badgeId.
+
+El rediseño de Kyo se valida con datos sintéticos; no se envían invitaciones a personas reales ni se modifican registros de Atlas durante las pruebas.

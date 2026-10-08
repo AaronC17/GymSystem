@@ -185,6 +185,44 @@ describe('FriendsView server-confirmed social UI', () => {
     expect(button('Compartir insignia: Diez pasos').disabled).toBe(true);
   });
 
+  it('opens locked artwork without sharing and returns focus when its detail closes', async () => {
+    await render(); await click('Insignias');
+    const artwork = host.querySelector<HTMLButtonElement>('[aria-label="Ver insignia: Diez pasos"]')!;
+    act(() => artwork.focus()); await act(async () => artwork.click());
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(dialog.textContent).toContain('Tu siguiente aventura');
+    expect(dialog.textContent).toContain('Completa diez entrenamientos');
+    expect(dialog.querySelector<HTMLProgressElement>('progress')?.value).toBe(2);
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.body.style.overflow).toBe('hidden');
+    expect(props.act).not.toHaveBeenCalled();
+    act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(artwork);
+    expect(document.body.style.overflow).not.toBe('hidden');
+  });
+
+  it('keeps legacy publications readable but only shows the six current collectible types', async () => {
+    dashboard.me.stats!.badges.push({ id: 'workouts-50', title: '50 entrenamientos', description: 'Legacy achievement.', progress: 50, target: 50, earned: true });
+    dashboard.posts = [{ ...sharedPost(), kind: 'badge', badgeId: 'workouts-50', title: '50 entrenamientos', hasWorkoutDetails: false }];
+    await render();
+    expect(host.querySelector('.friends-view__post-title')?.textContent).toBe('50 entrenamientos');
+    expect(host.querySelector('.friends-view__post-art')).toBeNull();
+    await click('Insignias');
+    expect(host.querySelector('.friends-view__badge-grid')?.textContent).not.toContain('50 entrenamientos');
+    expect(host.querySelectorAll('.friends-view__badge-stage')).toHaveLength(2);
+  });
+
+  it('uses only the server badge identity for feed artwork, never a guessed title', async () => {
+    dashboard.posts = [{ ...sharedPost(), kind: 'badge', badgeId: 'first-workout', hasWorkoutDetails: false }];
+    await render();
+    expect(host.querySelector('.friends-view__post-art img')?.getAttribute('src')).toBe('/badges/kyo-despertar.svg');
+    expect(props.detail).not.toHaveBeenCalled();
+    props.load = vi.fn(async (): Promise<SocialDashboard> => ({ ...dashboard, posts: [{ ...sharedPost(), kind: 'badge', title: 'Despertar', hasWorkoutDetails: false }] }));
+    await render();
+    expect(host.querySelector('.friends-view__post-art')).toBeNull();
+  });
+
   it('shows earned friend badges only when statistics are shared', async () => {
     dashboard.friends = [{ ...other, sharing: true, stats: dashboard.me.stats }];
     await render(); await click('Amigos');

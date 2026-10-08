@@ -169,3 +169,12 @@ Validación actualizada: **492 pruebas en 26 archivos**, incluida presentación 
 ### Selector de unidades compacto
 
 KG/LB se presenta en una sola pastilla de aproximadamente 80 × 38 px junto a las series, sin el bloque visible de explicación. Conserva el contexto accesible, el foco de teclado y las unidades independientes por ejercicio; no modifica preferencias generales ni la conversión de cargas. **493 pruebas en 26 archivos** y build/comprobación de secretos correctos. QA sintético de layout a 320, 390, 720 y 1024 px: selector en una línea, sin desbordamiento horizontal. Las comprobaciones se realizaron con datos sintéticos, sin escrituras en Atlas.
+
+### Colección Kyo y modernización de Amigos
+
+- Se crearon seis SVG vectoriales originales (lince Kyo, siluetas, expresiones y poses propias) y PNG RGBA transparentes de 1024 × 1024. Los masters se sirven en `public/badges/`; PNG, galería visual y guía de marca se incluyen en `docs/design/kyo/` y `docs/kyo-collection.html`. No se utilizó generador externo ni se agregaron dependencias.
+- Se unificó el catálogo servidor/cliente a seis logros: Despertar, En la zona, Garra firme, Ritmo felino, Instinto constante y Nueva forma. Se conservaron IDs para el primer logro, metas de 10/25, racha 2, racha 4 y marca personal. Los logros de 50 y 8 semanas dejan de calcularse, pero publicaciones anteriores siguen legibles y no se reescriben.
+- Amigos ahora tiene un hero de colección, chips de avatar basados en iniciales, métricas visuales, siguiente hito con progreso, feed de tarjetas, galería de insignias y detalle accesible con foco/restauración/Escape. Brillos, entradas y pulso de felicitación son finitos y respetan `prefers-reduced-motion`; la alineación global de otras pantallas y las entradas textuales de Amigos no se cambian.
+- Las publicaciones de insignia exponen un `badgeId` opcional derivado del mismo hash determinista, sin adivinar por título ni otorgar permisos adicionales. El cliente admite publicaciones antiguas sin dicho campo.
+
+QA integrado con identidad, solicitudes, entrenamientos y publicaciones totalmente sintéticos: 497 pruebas/26 archivos y build con comprobación de secretos correctos; ilustraciones verificadas en navegador y galería desktop. Sin invitaciones, escrituras en Atlas ni autenticación de cuentas reales.
